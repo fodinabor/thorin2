@@ -161,19 +161,38 @@ TEST(Main, loop) {
     auto main = w.nom_lam(main_t, w.dbg("main"));
     
     {
+        // [a, b, ..] -> cn [mem, i, a, b, .., cn[mem, i, a, b, ..]]
+        // [(a, b, ..)] -> cn [mem, i, (a, b, ..), cn[mem, i, (a, b, ..)]]
+        // {
+        //     auto make_cn = w.nom_pi(w.kind())->set_dom(w.kind());
+        //     make_cn->set_codom(w.cn({mem_t, i32_t, make_cn->var(0, nullptr), w.cn({mem_t, i32_t, make_cn->var(0,nullptr)})}));
+        //     make_cn->dump();
+        //     make_cn->dump(0);
 
-        // auto sig = w.nom_sigma(w.kind(), 2);
-        // sig->set(0, w.kind());
-        // sig->set(1, w.cn(sig->var(0, nullptr)));
+        //     auto cn = w.app(make_cn, w.tuple({i32_t, i32_t}));
+        //     cn->dump();
+        //     cn->dump(0);
+        // }
+
+        auto sig = w.nom_sigma(w.space(), 2);
+        sig->set(0, w.type_nat());
+        sig->set(1, w.arr(sig->var(0_s), w.kind()));
         // // sig->set(1, w.arr(sig->var(0, nullptr), w.type_nat()));
         // std::cout << "sig: \n";
         // sig->dump();
         // sig->dump(0);
-        auto loop_type_producer = w.nom_pi(w.kind())->set_dom(w.kind());
+        auto loop_type_producer = w.nom_pi(w.kind())->set_dom(sig);
         // auto paramst = loop_type_producer->var(0, w.dbg("body_params"));
-        auto cont_type = w.cn({mem_t, i32_t});
-        auto body_type = w.cn({mem_t, i32_t, cont_type});
-        loop_type_producer->set_codom(w.cn({mem_t, i32_t, i32_t, body_type}, w.dbg("loop_cn")));
+        auto [n, paramstpl] = loop_type_producer->vars<2>();
+        // auto paramstpl = loop_type_producer->op(0);
+        auto inarr = w.nom_arr(n);
+        inarr->set(w.extract(paramstpl, inarr->var(0_s)));
+
+        auto cont_type = w.cn({mem_t, i32_t, inarr});
+        auto body_type = w.cn({mem_t, i32_t, inarr, cont_type});
+        auto loop_ax_type = w.cn({mem_t, i32_t, i32_t, inarr, body_type});
+        loop_type_producer->set_codom(loop_ax_type);
+        // loop_type_producer->set_codom(w.cn({mem_t, i32_t, i32_t, body_type}, w.dbg("loop_cn")));
 
         std::cout << "ltp: \n";
         loop_type_producer->dump();
@@ -184,7 +203,7 @@ TEST(Main, loop) {
         ax->dump();
         ax->dump(0);
 
-        auto applied = w.app(ax, w.tuple({mem_t, i32_t, i32_t, w.cn(mem_t, i32_t)}));
+        auto applied = w.app(ax, {w.lit_nat(2), w.pack(2, i32_t)});
         applied->dump();
         applied->dump(0);
         applied->dump(5);
@@ -196,8 +215,8 @@ TEST(Main, loop) {
 
         auto body = w.nom_lam(body_type, w.dbg("body"));
         {
-            auto [mem, i, cont] = body->vars<3>();
-            body->app(cont, {mem, i});
+            auto [mem, i, tupl, cont] = body->vars<4>();
+            body->app(cont, {mem, i, tupl});
         }
         body->dump();
         body->dump(0);
@@ -207,12 +226,9 @@ TEST(Main, loop) {
             // auto applied_twice = w.app(applied, {mem, w.lit_int(0), argc, body});
             // applied_twice->dump();
             // applied_twice->dump(0);
-            main->app(applied, {mem, w.lit_int(0), argc, body});
+            main->app(applied, {mem, w.lit_int(0), argc, w.tuple({w.lit_int(0), w.lit_int(5)}), body});
         }
     }
-
-    main_t->dump();
-    main_t->dump(0);
 
     // // [ret_t: *] -> [n: nat, b: [i: nat, continue: loop], ret: ret_t] -> !
     // auto loop = w.app(w.ax_loop(), ret)->as_nom<Pi>();
@@ -233,9 +249,13 @@ TEST(Main, loop) {
     // main->app(ret, {mem, argc});
     main->make_external();
 
+    main->dump();
+    main->dump(0);
+    main->dump(10);
+
 
     Stream cs(std::cout);
-    w.stream(cs);
+    // w.stream(cs);
 
 
     std::ofstream file("test.ll");
