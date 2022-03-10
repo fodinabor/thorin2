@@ -8,6 +8,8 @@
 #include "thorin/world.h"
 
 #include "thorin/be/ll/ll.h"
+#include "thorin/pass/pass.h"
+#include "thorin/pass/rw/lower_loop.h"
 
 using namespace thorin;
 
@@ -110,10 +112,7 @@ TEST(Main, sec) {
         loop->app(w.select(body, exit, w.app(lt, {iterVar, l32})), lMem);
     }
 
-    loop->dump();
-    loop->dump(0);
-
-    auto add = w.fn(Wrap::add, w.lit_int(0), i32_w);
+    auto add = w.fn(Wrap::add, w.lit_nat(0), i32_w);
     {
         auto [lMem, iterVar, accumulator] = loop->vars<3>();
 
@@ -121,17 +120,12 @@ TEST(Main, sec) {
         auto iterInc = w.app(add, {iterVar, w.lit_int(1)});
         body->app(loop, {lMem, iterInc, accumAdd});
     }
-    body->dump();
-    body->dump(0);
     {
         auto [lMem, iterVar, accumulator] = loop->vars<3>();
         exit->app(main->var(3), {main->var(0, nullptr), accumulator});
     }
-    exit->dump();
-    exit->dump(0);
 
-    // main->app(ret, {mem, w.app(add, {l32, argc})});
-    main->app(loop, {mem, w.lit_int(0), w.lit_int(0), ret});
+    main->app(loop, {mem, w.lit_int(0), w.lit_int(0)});
     main->make_external();
 
     Stream cs(std::cout);
@@ -161,101 +155,39 @@ TEST(Main, loop) {
     auto main = w.nom_lam(main_t, w.dbg("main"));
     
     {
-        // [a, b, ..] -> cn [mem, i, a, b, .., cn[mem, i, a, b, ..]]
-        // [(a, b, ..)] -> cn [mem, i, (a, b, ..), cn[mem, i, (a, b, ..)]]
-        // {
-        //     auto make_cn = w.nom_pi(w.kind())->set_dom(w.kind());
-        //     make_cn->set_codom(w.cn({mem_t, i32_t, make_cn->var(0, nullptr), w.cn({mem_t, i32_t, make_cn->var(0,nullptr)})}));
-        //     make_cn->dump();
-        //     make_cn->dump(0);
+        auto [mem, argc, argv, ret] = main->vars<4>();
+        auto slot = w.op_slot(i32_t, mem);
 
-        //     auto cn = w.app(make_cn, w.tuple({i32_t, i32_t}));
-        //     cn->dump();
-        //     cn->dump(0);
-        // }
+        auto loop = w.fn_loop({i32_t, i32_t});
 
-        auto sig = w.nom_sigma(w.space(), 2);
-        sig->set(0, w.type_nat());
-        sig->set(1, w.arr(sig->var(0_s), w.kind()));
-        // // sig->set(1, w.arr(sig->var(0, nullptr), w.type_nat()));
-        // std::cout << "sig: \n";
-        // sig->dump();
-        // sig->dump(0);
-        auto loop_type_producer = w.nom_pi(w.kind())->set_dom(sig);
-        // auto paramst = loop_type_producer->var(0, w.dbg("body_params"));
-        auto [n, paramstpl] = loop_type_producer->vars<2>();
-        // auto paramstpl = loop_type_producer->op(0);
-        auto inarr = w.nom_arr(n);
-        inarr->set(w.extract(paramstpl, inarr->var(0_s)));
-
-        auto cont_type = w.cn({mem_t, i32_t, inarr});
-        auto body_type = w.cn({mem_t, i32_t, inarr, cont_type});
-        auto loop_ax_type = w.cn({mem_t, i32_t, i32_t, inarr, body_type});
-        loop_type_producer->set_codom(loop_ax_type);
-        // loop_type_producer->set_codom(w.cn({mem_t, i32_t, i32_t, body_type}, w.dbg("loop_cn")));
-
-        std::cout << "ltp: \n";
-        loop_type_producer->dump();
-        loop_type_producer->dump(0);
-        loop_type_producer->dump(5);
-
-        auto ax = w.axiom(nullptr, loop_type_producer, Tag::Loop, 0, w.dbg("loop"));
-        ax->dump();
-        ax->dump(0);
-
-        auto applied = w.app(ax, {w.lit_nat(2), w.pack(2, i32_t)});
-        applied->dump();
-        applied->dump(0);
-        applied->dump(5);
-
-        // auto lam = w.lam(body_type, );
-        body_type->dump();
-        body_type->dump(0);
-        body_type->dump(5);
+        auto cont_type = w.cn({mem_t, i32_t, i32_t, i32_t});
+        auto body_type = w.cn({mem_t, i32_t, i32_t, i32_t, cont_type});
 
         auto body = w.nom_lam(body_type, w.dbg("body"));
         {
-            auto [mem, i, tupl, cont] = body->vars<4>();
-            body->app(cont, {mem, i, tupl});
+            auto [mem, i, acc, acc2, cont] = body->vars<5>();
+            auto add = w.op(Wrap::add, w.lit_nat(0), acc, i);
+            auto st = w.op_store(mem, slot->proj(1), add);
+            auto stmem = st->proj(0);
+            body->app(cont, {stmem, i, acc, acc2});
         }
-        body->dump();
-        body->dump(0);
-        body->dump(5);
+        
+        auto brk = w.nom_lam(w.cn(mem_t), w.dbg("break"));
+        auto ld = w.op_load(brk->mem_var(), slot->proj(1));
         {
-            auto [mem, argc, argv, ret] = main->vars<4>();
-            // auto applied_twice = w.app(applied, {mem, w.lit_int(0), argc, body});
-            // applied_twice->dump();
-            // applied_twice->dump(0);
-            main->app(applied, {mem, w.lit_int(0), argc, w.tuple({w.lit_int(0), w.lit_int(5)}), body});
+            brk->app(ret, {ld->proj(0), ld->proj(1)});
+            main->app(loop, {mem, w.lit_int(0), argc, w.lit_int(0), w.lit_int(5), body, brk});
         }
     }
 
-    // // [ret_t: *] -> [n: nat, b: [i: nat, continue: loop], ret: ret_t] -> !
-    // auto loop = w.app(w.ax_loop(), ret)->as_nom<Pi>();
-
-    // // [i: nat, continue : loop] -> !
-    // auto body_t = w.cn({w.type_nat(), loop});
-    // auto body = w.nom_lam(body_t, w.dbg("body"));
-    // {
-    //     auto [lMem, iterVar, accumulator] = loop->vars<3>();
-    //     auto [bodyI, bodyCont] = body->vars<2>();
-
-    //     auto add = w.fn(Wrap::add, w.lit_int(0), i32_w);
-    //     auto accumAdd = w.app(add, {bodyI, accumulator});
-    //     body->app(bodyCont, {accumAdd});
-    // }
-    
-    // auto [mem, argc, argv, ret] = main->vars<4>();
-    // main->app(ret, {mem, argc});
     main->make_external();
 
-    main->dump();
-    main->dump(0);
-    main->dump(10);
-
+    PassMan passMan{w};
+    passMan.add<LowerLoop>();
+    passMan.run();
 
     Stream cs(std::cout);
-    // w.stream(cs);
+    w.stream(cs);
 
 
     std::ofstream file("test.ll");

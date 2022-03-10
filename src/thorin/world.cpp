@@ -1,4 +1,5 @@
 #include "thorin/world.h"
+#include "thorin/tuple.h"
 
 // for colored output
 #ifdef _WIN32
@@ -255,7 +256,25 @@ World::World(std::string_view name)
         rs_pi->set_codom(is_os_pi);
 
         data_.zip_ = axiom(normalize_zip, rs_pi, Tag::Zip, 0, dbg("zip"));
-    }
+    } { // loop: [n_p : nat, params_t : «n_p, *» ret_t: *] -> [n: nat, b: [i: nat, params : params_t, continue: loop], ret: ret_t] -> !
+        // loop: [n: nat, params: «n, *»] -> [i: int, bound: int, body: [params] -> !] -> !
+        auto loop_type_producer = nom_pi(kind())->set_dom(kind());
+        auto params = loop_type_producer->var(dbg("pass_through_params"));
+        auto loopCn = cn(params);
+        loop_type_producer->set_codom(loopCn);
+
+        data_.loop_ = axiom(nullptr, loop_type_producer, Tag::Loop, 0, dbg("loop"));
+
+        // auto loop_producer_t = nom_pi(kind())->set_dom(kind());
+        // auto loop_t = nom_pi(kind());
+        // loop_t->set_dom({nat, cn({nat, loop_t}), loop_producer_t->var(0, dbg("ret"))});
+        // loop_producer_t->set_codom(loop_t);
+        // // auto loop_t = nom_pi(kind());
+        // // loop_t->set_dom({nat, cn({nat, loop_t}), kind()});
+        // // auto type = nom_pi(kind())->set_dom({kind(), kind()});
+        // // auto [T, R] = type->vars<2>({dbg("T"), dbg("R")});
+        // // type->set_codom(pi(T, R));
+    } 
 }
 
 World::~World() {
@@ -584,6 +603,15 @@ const Def* World::test(const Def* value, const Def* probe, const Def* match, con
 
     auto codom = join({m_pi->codom(), c_pi->codom()});
     return unify<Test>(4, pi(c_pi->dom(), codom), value, probe, match, clash, dbg);
+}
+
+const Def* World::fn_loop(Defs params) {
+    auto i32_t = type_int_width(32);
+    auto common_sigma = merge_sigma(sigma({type_mem(), i32_t}), params);
+    auto cn_continue = cn(common_sigma);
+    auto cn_body = cn(merge_sigma(common_sigma, {cn_continue}));
+    auto loop_sigma = merge_sigma(merge_sigma(sigma({type_mem(), i32_t, i32_t}), params), {cn_body, cn(type_mem())});
+    return app(ax_loop(), loop_sigma);
 }
 
 /*

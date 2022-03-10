@@ -378,6 +378,7 @@ public:
     const Axiom* ax_malloc()  const { return data_.malloc_;  }
     const Axiom* ax_mslot()   const { return data_.mslot_;   }
     const Axiom* ax_zip()     const { return data_.zip_;     }
+    const Axiom* ax_loop()    const { return data_.loop_;    }
     const Axiom* ax_load()    const { return data_.load_;    }
     const Axiom* ax_remem()   const { return data_.remem_;   }
     const Axiom* ax_slot()    const { return data_.slot_;    }
@@ -415,6 +416,7 @@ public:
     const Def* fn_bitcast(const Def* dst_t, const Def* src_t, const Def* dbg = {}) {
         return app(ax_bitcast(), {dst_t, src_t}, dbg);
     }
+    const Def* fn_loop(Defs params);
     ///@}
 
     /// @name op - these guys build the final function application for the various operations
@@ -761,6 +763,7 @@ private:
         const Axiom* type_ptr_;
         const Axiom* type_real_;
         const Axiom* zip_;
+        const Axiom* loop_;
         std::string name_;
         Externals externals_;
         Sea defs_;

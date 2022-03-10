@@ -74,6 +74,8 @@ add_library(libthorin
     pass/rw/bound_elim.h
     pass/rw/scalarize.cpp
     pass/rw/scalarize.h
+    pass/rw/lower_loop.cpp
+    pass/rw/lower_loop.h
     transform/cleanup_world.cpp
     transform/cleanup_world.h
     transform/mangle.cpp
