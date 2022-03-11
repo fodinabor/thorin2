@@ -155,28 +155,25 @@ TEST(Main, loop) {
     auto main = w.nom_lam(main_t, w.dbg("main"));
     
     {
-        auto [mem, argc, argv, ret] = main->vars<4>();
-        auto slot = w.op_slot(i32_t, mem);
-
         auto loop = w.fn_loop({i32_t, i32_t});
 
-        auto cont_type = w.cn({mem_t, i32_t, i32_t, i32_t});
+        auto cont_type = w.cn({mem_t, i32_t, i32_t});
         auto body_type = w.cn({mem_t, i32_t, i32_t, i32_t, cont_type});
 
         auto body = w.nom_lam(body_type, w.dbg("body"));
         {
-            auto [mem, i, acc, acc2, cont] = body->vars<5>();
+            auto [mem, i, acc, acc2, cont] = body->vars<5>({w.dbg("mem"), w.dbg("i"), w.dbg("acc"), w.dbg("acc2"), w.dbg("cont")});
             auto add = w.op(Wrap::add, w.lit_nat(0), acc, i);
-            auto st = w.op_store(mem, slot->proj(1), add);
-            auto stmem = st->proj(0);
-            body->app(cont, {stmem, i, acc, acc2});
+            auto mul = w.op(Wrap::mul, w.lit_nat(0), acc2, i);
+            body->app(cont, {mem, add, mul});
         }
         
-        auto brk = w.nom_lam(w.cn(mem_t), w.dbg("break"));
-        auto ld = w.op_load(brk->mem_var(), slot->proj(1));
+        auto brk = w.nom_lam(w.cn({mem_t, i32_t, i32_t}), w.dbg("break"));
         {
-            brk->app(ret, {ld->proj(0), ld->proj(1)});
-            main->app(loop, {mem, w.lit_int(0), argc, w.lit_int(0), w.lit_int(5), body, brk});
+            auto [main_mem, argc, argv, ret] = main->vars<4>({w.dbg("mem"), w.dbg("argc"), w.dbg("argv"), w.dbg("exit")});
+            auto [mem, acc, acc2] = brk->vars<3>();
+            brk->app(ret, {mem, acc});
+            main->app(loop, {main_mem, w.lit_int(0), argc, w.lit_int(0), w.lit_int(5), body, brk});
         }
     }
 

@@ -607,10 +607,10 @@ const Def* World::test(const Def* value, const Def* probe, const Def* match, con
 
 const Def* World::fn_loop(Defs params) {
     auto i32_t = type_int_width(32);
-    auto common_sigma = merge_sigma(sigma({type_mem(), i32_t}), params);
+    auto common_sigma = merge_sigma(sigma({type_mem()}), params);
     auto cn_continue = cn(common_sigma);
-    auto cn_body = cn(merge_sigma(common_sigma, {cn_continue}));
-    auto loop_sigma = merge_sigma(merge_sigma(sigma({type_mem(), i32_t, i32_t}), params), {cn_body, cn(type_mem())});
+    auto cn_body = cn(merge_sigma(merge_sigma(sigma({type_mem(), i32_t}), params), {cn_continue}));
+    auto loop_sigma = merge_sigma(merge_sigma(sigma({type_mem(), i32_t, i32_t}), params), {cn_body, cn(common_sigma)});
     return app(ax_loop(), loop_sigma);
 }
 
