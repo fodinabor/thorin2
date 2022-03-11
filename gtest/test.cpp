@@ -1,8 +1,6 @@
 #include <gtest/gtest.h>
 
 #include "thorin/error.h"
-#include "thorin/be/ll/ll.h"
-#include "thorin/axiom.h"
 #include "thorin/lam.h"
 #include "thorin/tables.h"
 #include "thorin/world.h"
@@ -90,19 +88,19 @@ TEST(Main, sec) {
     auto mem_t  = w.type_mem();
     auto i32_t  = w.type_int_width(32);
     auto argv_t = w.type_ptr(w.type_ptr(i32_t));
-    auto i32_w = w.lit_nat(width2mod(32));
-    auto l32 = w.lit_int(32);
+    auto i32_w  = w.lit_nat(width2mod(32));
+    auto l32    = w.lit_int(32);
 
     // Cn [mem, i32, i32**, Cn [mem, i32]]
-    auto main_t = w.cn({mem_t, i32_t, argv_t, w.cn({mem_t, i32_t}, w.dbg("return"))});
-    auto main = w.nom_lam(main_t, w.dbg("main"));
+    auto main_t                 = w.cn({mem_t, i32_t, argv_t, w.cn({mem_t, i32_t}, w.dbg("return"))});
+    auto main                   = w.nom_lam(main_t, w.dbg("main"));
     auto [mem, argc, argv, ret] = main->vars<4>();
 
     auto body_t = w.cn(mem_t);
 
-    auto lt = w.fn(ICmp::ul, i32_w);
+    auto lt     = w.fn(ICmp::ul, i32_w);
     auto loop_t = w.cn({mem_t, i32_t, i32_t});
-    auto loop = w.nom_lam(loop_t, w.dbg("loop"));
+    auto loop   = w.nom_lam(loop_t, w.dbg("loop"));
 
     auto body = w.nom_lam(body_t, w.dbg("body"));
     auto exit = w.nom_lam(body_t, w.dbg("exit"));
@@ -117,7 +115,7 @@ TEST(Main, sec) {
         auto [lMem, iterVar, accumulator] = loop->vars<3>();
 
         auto accumAdd = w.app(add, {iterVar, accumulator});
-        auto iterInc = w.app(add, {iterVar, w.lit_int(1)});
+        auto iterInc  = w.app(add, {iterVar, w.lit_int(1)});
         body->app(loop, {lMem, iterInc, accumAdd});
     }
     {
@@ -147,33 +145,34 @@ TEST(Main, loop) {
     World w;
     auto mem_t  = w.type_mem();
     auto i32_t  = w.type_int_width(32);
+    auto i64_t  = w.type_int_width(64);
     auto argv_t = w.type_ptr(w.type_ptr(i32_t));
-    auto i32_w  = w.lit_nat(width2mod(32));
 
-    // Cn [mem, i32, Cn [mem, i32]]
+    // Cn [mem, i32, ptr(ptr(i32, 0), 0) Cn [mem, i32]]
     auto main_t = w.cn({mem_t, i32_t, argv_t, w.cn({mem_t, i32_t})});
-    auto main = w.nom_lam(main_t, w.dbg("main"));
-    
-    {
-        auto loop = w.fn_loop({i32_t, i32_t});
+    auto main   = w.nom_lam(main_t, w.dbg("main"));
 
-        auto cont_type = w.cn({mem_t, i32_t, i32_t});
-        auto body_type = w.cn({mem_t, i32_t, i32_t, i32_t, cont_type});
+    {
+        auto loop = w.fn_loop({i32_t, i64_t});
+        auto accumulator_type = w.sigma({i32_t, i64_t});
+        auto cont_type        = w.cn({mem_t, accumulator_type});
+        auto body_type        = w.cn({mem_t, i32_t, accumulator_type, cont_type});
 
         auto body = w.nom_lam(body_type, w.dbg("body"));
         {
-            auto [mem, i, acc, acc2, cont] = body->vars<5>({w.dbg("mem"), w.dbg("i"), w.dbg("acc"), w.dbg("acc2"), w.dbg("cont")});
-            auto add = w.op(Wrap::add, w.lit_nat(0), acc, i);
-            auto mul = w.op(Wrap::mul, w.lit_nat(0), acc2, i);
-            body->app(cont, {mem, add, mul});
+            auto [mem, i, acctpl, cont] = body->vars<4>({w.dbg("mem"), w.dbg("i"), w.dbg("acctpl"), w.dbg("cont")});
+            auto add = w.op(Wrap::add, w.lit_nat(0), w.extract(acctpl, 0_s), i);
+            auto mul = w.op(Wrap::mul, w.lit_nat(0), w.extract(acctpl, 1_s), w.op_bitcast(i64_t, i));
+            body->app(cont, {mem, w.tuple({add, mul})});
         }
-        
-        auto brk = w.nom_lam(w.cn({mem_t, i32_t, i32_t}), w.dbg("break"));
+
+        auto brk = w.nom_lam(w.cn({mem_t, accumulator_type}), w.dbg("break"));
         {
-            auto [main_mem, argc, argv, ret] = main->vars<4>({w.dbg("mem"), w.dbg("argc"), w.dbg("argv"), w.dbg("exit")});
-            auto [mem, acc, acc2] = brk->vars<3>();
-            brk->app(ret, {mem, acc});
-            main->app(loop, {main_mem, w.lit_int(0), argc, w.lit_int(0), w.lit_int(5), body, brk});
+            auto [main_mem, argc, argv, ret] =
+                main->vars<4>({w.dbg("mem"), w.dbg("argc"), w.dbg("argv"), w.dbg("exit")});
+            auto [mem, acctpl] = brk->vars<2>();
+            brk->app(ret, {mem, w.extract(acctpl, 0_s)});
+            main->app(loop, {main_mem, w.lit_int(0), argc, w.lit_int(1), w.tuple({w.lit_int(0), w.lit_int(i64_t, 5)}), body, brk});
         }
     }
 
@@ -186,20 +185,8 @@ TEST(Main, loop) {
     Stream cs(std::cout);
     w.stream(cs);
 
-
     std::ofstream file("test.ll");
     Stream s(file);
     ll::emit(w, s);
     file.close();
-
-#ifndef _MSC_VER
-    // TODO make sure that proper clang is in path on Windows
-    std::system("clang test.ll -o test");
-    // I don't know why but for some reason the output doesn't appear on the test server.
-#if 0
-    EXPECT_EQ(4, WEXITSTATUS(std::system("./test a b c")));
-    EXPECT_EQ(7, WEXITSTATUS(std::system("./test a b c d e f")));
-#endif
-#endif
 }
-

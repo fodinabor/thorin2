@@ -6,16 +6,15 @@
 namespace thorin {
 
 
-/// Lowers the loop axiom to actual control flow in CPS style
+/// Lowers the for axiom to actual control flow in CPS style
 class LowerLoop : public RWPass<Lam> {
 public:
     LowerLoop(PassMan& man)
-        : RWPass(man, "lower_loop") {}
+        : RWPass(man, "lower_affine_for") {}
 
     const Def* rewrite(const Def*) override;
 
 private:
-    Lam2Lam tup2sca_;
 };
 
 }

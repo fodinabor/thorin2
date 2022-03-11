@@ -256,25 +256,28 @@ World::World(std::string_view name)
         rs_pi->set_codom(is_os_pi);
 
         data_.zip_ = axiom(normalize_zip, rs_pi, Tag::Zip, 0, dbg("zip"));
-    } { // loop: [n_p : nat, params_t : «n_p, *» ret_t: *] -> [n: nat, b: [i: nat, params : params_t, continue: loop], ret: ret_t] -> !
-        // loop: [n: nat, params: «n, *»] -> [i: int, bound: int, body: [params] -> !] -> !
-        auto loop_type_producer = nom_pi(kind())->set_dom(kind());
-        auto params = loop_type_producer->var(dbg("pass_through_params"));
-        auto loopCn = cn(params);
-        loop_type_producer->set_codom(loopCn);
+    }
+    {   // for :: [m: Nat , n: Nat , Ts: «n; *»] → [Mem , Int m, Int m, Int m, «i: n; Is#i», Cn [Mem , «i: n; Is#i», Cn
+        // [Mem , «i: n; Is#i»]], Cn [Mem , «i: n; Is#i»]];
 
-        data_.loop_ = axiom(nullptr, loop_type_producer, Tag::Loop, 0, dbg("loop"));
+        auto input_sigma = nom_sigma(space(), 3);
+        input_sigma->set(0, nat);
+        input_sigma->set(1, nat);
+        input_sigma->set(2, arr(input_sigma->var(1), kind()));
 
-        // auto loop_producer_t = nom_pi(kind())->set_dom(kind());
-        // auto loop_t = nom_pi(kind());
-        // loop_t->set_dom({nat, cn({nat, loop_t}), loop_producer_t->var(0, dbg("ret"))});
-        // loop_producer_t->set_codom(loop_t);
-        // // auto loop_t = nom_pi(kind());
-        // // loop_t->set_dom({nat, cn({nat, loop_t}), kind()});
-        // // auto type = nom_pi(kind())->set_dom({kind(), kind()});
-        // // auto [T, R] = type->vars<2>({dbg("T"), dbg("R")});
-        // // type->set_codom(pi(T, R));
-    } 
+        auto ltp                      = nom_pi(kind())->set_dom(input_sigma);
+        auto [mod, type_shape, types] = ltp->vars<3>({dbg("iter_modulo"), dbg("types_shape"), dbg("types")});
+
+        auto it_type                  = type_int(mod);
+        auto type_arr                 = nom_arr(type_shape);
+        type_arr->set(extract(types, type_arr->var()));
+
+        ltp->set_codom(cn({mem, it_type, it_type, it_type, type_arr,
+                           cn({mem, it_type, type_arr, cn({mem, type_arr}, dbg("continue"))}, dbg("body")),
+                           cn({mem, type_arr}, dbg("exit"))}));
+
+        data_.for_ = axiom(nullptr, ltp, Tag::For, 0, dbg("for"));
+    }
 }
 
 World::~World() {
@@ -606,12 +609,7 @@ const Def* World::test(const Def* value, const Def* probe, const Def* match, con
 }
 
 const Def* World::fn_loop(Defs params) {
-    auto i32_t = type_int_width(32);
-    auto common_sigma = merge_sigma(sigma({type_mem()}), params);
-    auto cn_continue = cn(common_sigma);
-    auto cn_body = cn(merge_sigma(merge_sigma(sigma({type_mem(), i32_t}), params), {cn_continue}));
-    auto loop_sigma = merge_sigma(merge_sigma(sigma({type_mem(), i32_t, i32_t}), params), {cn_body, cn(common_sigma)});
-    return app(ax_loop(), loop_sigma);
+    return app(ax_for(), {lit_nat(width2mod(32)), lit_nat(params.size()), tuple(params)});
 }
 
 /*
