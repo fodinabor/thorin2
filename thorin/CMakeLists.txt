@@ -68,6 +68,8 @@ add_library(libthorin
     pass/rw/partial_eval.h
     pass/rw/lower_for.cpp
     pass/rw/lower_for.h
+    pass/rw/lower_zip.cpp
+    pass/rw/lower_zip.h
     pass/rw/remem_elim.cpp
     pass/rw/remem_elim.h
     pass/rw/ret_wrap.cpp
