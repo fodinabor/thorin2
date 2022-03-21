@@ -119,7 +119,7 @@ std::string CodeGen::convert(const Def* type) {
         return types_[type] = "i64";
     } else if (isa<Tag::Int>(type)) {
         auto size = isa_sized_type(type);
-        if (size->isa<Top>()) return types_[type] = "i64";
+        if (size->isa<Top>() || !size->isa<Lit>()) return types_[type] = "i64";
         if (auto width = mod2width(as_lit(size))) {
             switch (*width) {
                 // clang-format off
@@ -587,7 +587,7 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
 
         auto size2width = [&](const Def* type) {
             if (auto int_ = isa<Tag::Int>(type)) {
-                if (int_->arg()->isa<Top>()) return 64_u64;
+                if (int_->arg()->isa<Top>() || !int_->arg()->isa<Lit>()) return 64_u64;
                 if (auto width = mod2width(as_lit(int_->arg()))) return *width;
                 return 64_u64;
             }
