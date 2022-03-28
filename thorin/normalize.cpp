@@ -295,10 +295,15 @@ static const Def* fold(World& world, const Def* type, const App* callee, const D
         nat_t width;
         [[maybe_unused]] bool nsw = false, nuw = false;
         if constexpr (std::is_same_v<Op, Wrap>) {
-            auto [mode, w] = callee->args<2>(as_lit<nat_t>);
-            nsw            = mode & WMode::nsw;
-            nuw            = mode & WMode::nuw;
-            width          = w;
+            auto [mode, w] = callee->args<2>();
+            auto lmode     = as_lit<nat_t>(mode);
+            nsw            = lmode & WMode::nsw;
+            nuw            = lmode & WMode::nuw;
+            if (isa_lit(w)) {
+                width = as_lit(w);
+            } else { // default to 64 bit if int has non-lit modulo
+                width = width2mod(64);
+            }
         } else {
             width = as_lit(a->type()->as<App>()->arg());
         }

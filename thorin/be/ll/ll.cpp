@@ -401,7 +401,7 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
             return std::to_string(lit->get<nat_t>());
         } else if (isa<Tag::Int>(lit->type())) {
             auto size = isa_sized_type(lit->type());
-            if (size->isa<Top>()) return std::to_string(lit->get<nat_t>());
+            if (size->isa<Top>() || !size->isa<Lit>()) return std::to_string(lit->get<nat_t>());
             if (auto mod = mod2width(as_lit(size))) {
                 switch (*mod) {
                     // clang-format off
@@ -471,9 +471,9 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
 
         return bb.assign(name, "{} {} {}, {}", op, t, a, b);
     } else if (auto wrap = isa<Tag::Wrap>(def)) {
-        auto [a, b]        = wrap->args<2>([this](auto def) { return emit(def); });
-        auto t             = convert(wrap->type());
-        auto [mode, width] = wrap->decurry()->args<2>(as_lit<nat_t>);
+        auto [a, b] = wrap->args<2>([this](auto def) { return emit(def); });
+        auto t      = convert(wrap->type());
+        auto mode   = as_lit<nat_t>(wrap->decurry()->arg(0));
 
         switch (wrap.flags()) {
             case Wrap::add: op = "add"; break;
