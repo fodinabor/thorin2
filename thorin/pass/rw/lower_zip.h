@@ -1,6 +1,8 @@
 #ifndef THORIN_PASS_RW_LOWER_ZIP_H
 #define THORIN_PASS_RW_LOWER_ZIP_H
 
+#include "thorin/def.h"
+
 #include "thorin/pass/pass.h"
 
 namespace thorin {
@@ -13,7 +15,13 @@ public:
     LowerZip(PassMan& man)
         : RWPass(man, "lower_zip") {}
 
+    void enter() override { found_zip_.reset(); }
+
     const Def* rewrite(const Def*) override;
+
+private:
+    Def2Def rewritten_;
+    std::optional<const Def*> found_zip_;
 };
 
 } // namespace thorin

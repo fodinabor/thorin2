@@ -17,6 +17,7 @@
 #include "thorin/pass/optimize.h"
 #include "thorin/pass/pass.h"
 #include "thorin/pass/rw/lower_for.h"
+#include "thorin/pass/rw/lower_zip.h"
 
 using namespace thorin;
 
@@ -189,12 +190,14 @@ TEST_P(ZipAxiomTest, zip_dyn) {
     Stream cs{};
     w.stream(cs);
 
+    PassMan manz{w};
+    manz.add<LowerZip>();
+    manz.run();
+    w.stream(cs);
+
     PassMan man{w};
     man.add<LowerFor>();
     man.run();
-
-    w.set(std::make_shared<Stream>());
-    w.set(LogLevel::Debug);
 
     optimize(w);
 
