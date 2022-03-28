@@ -8,7 +8,7 @@
 using namespace thorin;
 
 const Def* LowerZip::rewrite(const Def* def) {
-    if (auto cached = rewritten_.lookup(def)) return cached.value();
+    if (auto cached = rewritten_.find(def); cached != rewritten_.end()) return cached->second;
     if (auto zip = isa<Tag::Zip>(def)) {
         found_zip_ = zip;
         return def;
@@ -57,14 +57,16 @@ const Def* LowerZip::rewrite(const Def* def) {
                 if (auto nom = back->isa_nom()) {
                     if (nom == curr_nom()) continue;
                     for (size_t i = 0; i < nom->num_ops(); ++i)
-                        if (auto cached = local_map.lookup(nom->op(i))) nom->set(i, *cached);
+                        if (auto cached = local_map.find(nom->op(i)); cached != local_map.end())
+                            nom->set(i, cached->second);
                     continue;
                 }
 
                 wl.insert(wl.end(), back->uses().begin(), back->uses().end());
                 DefArray new_ops{back->num_ops(), [&](size_t i) {
                                      auto op = back->op(i);
-                                     if (auto cached = local_map.lookup(op)) return *cached;
+                                     if (auto cached = local_map.find(op); cached != local_map.end())
+                                         return cached->second;
                                      return op;
                                  }};
                 local_map[back] = back->rebuild(w, back->type(), new_ops, back->dbg());
