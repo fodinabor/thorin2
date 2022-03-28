@@ -606,8 +606,8 @@ const Def* World::test(const Def* value, const Def* probe, const Def* match, con
     return unify<Test>(4, pi(c_pi->dom(), codom), value, probe, match, clash, dbg);
 }
 
-const Def* World::fn_for(Defs params) {
-    return app(ax_for(), {lit_nat(width2mod(32)), lit_nat(params.size()), tuple(params)});
+const Def* World::fn_for(const Def* iter_mod, Defs params) {
+    return app(ax_for(), {iter_mod, lit_nat(params.size()), tuple(params)});
 }
 
 /*
@@ -645,7 +645,7 @@ const Def* World::op_for(const Def* mem,
                          const Def* body,
                          const Def* brk) {
     DefArray types(inits.size(), [&](size_t i) { return inits[i]->type(); });
-    return app(fn_for(types), {mem, begin, end, step, tuple(inits), body, brk});
+    return app(fn_for(as<Tag::Int>(begin->type())->arg(), types), {mem, begin, end, step, tuple(inits), body, brk});
 }
 
 /*

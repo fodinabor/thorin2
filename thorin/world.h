@@ -412,7 +412,7 @@ public:
     const Def* fn_bitcast(const Def* dst_t, const Def* src_t, const Def* dbg = {}) {
         return app(ax_bitcast(), {dst_t, src_t}, dbg);
     }
-    const Def* fn_for(Defs params);
+    const Def* fn_for(const Def* iter_mod, Defs params);
     ///@}
 
     /// @name op - these guys build the final function application for the various operations
