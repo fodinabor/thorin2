@@ -43,8 +43,8 @@ add_thorin_dialect(core
         core/normalizers.cpp
         core/be/ll/ll.cpp
         core/be/ll/ll.h
-        core/pass/lower_zip.cpp
-        core/pass/lower_zip.h
+        core/pass/rw/lower_zip.cpp
+        core/pass/rw/lower_zip.h
     DEPENDS
         mem
         clos

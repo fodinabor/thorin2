@@ -1,4 +1,4 @@
-#include "dialects/core/pass/lower_zip.h"
+#include "dialects/core/pass/rw/lower_zip.h"
 
 #include "thorin/def.h"
 #include "thorin/tables.h"

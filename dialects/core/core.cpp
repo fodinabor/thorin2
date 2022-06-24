@@ -8,7 +8,7 @@
 #include "thorin/pass/pipelinebuilder.h"
 
 #include "dialects/core/be/ll/ll.h"
-#include "dialects/core/pass/lower_zip.h"
+#include "dialects/core/pass/rw/lower_zip.h"
 
 using namespace thorin;
 
