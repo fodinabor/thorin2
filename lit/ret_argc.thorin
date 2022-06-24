@@ -1,0 +1,21 @@
+// RUN: rm -f %t.ll ; \
+// RUN: %thorin -e thorin %s -e ll -o %t | FileCheck %s
+// RUN: clang %t.ll -o %t -Wno-override-module
+// RUN: %t ; test $? -eq 1
+// RUN: %t 1 2 3 ; test $? -eq 4
+// RUN: %t a b c d e f ; test $? -eq 7
+
+.import mem;
+
+.lam .extern main: .Cn [mem : %mem.M, argc : %Int 4294967296, argv : %mem.Ptr (%mem.Ptr (%Int 256, 0:.Nat), 0:.Nat), return : .Cn [%mem.M, %Int 4294967296]] = {
+    0: (%Int 2),
+    return (mem, argc)
+};
+
+// CHECK-DAG: main: .Cn [%mem.M, (%Int 4294967296), %mem.Ptr (%mem.Ptr ((%Int 256), 0:.Nat), 0:.Nat), .Cn [%mem.M, (%Int 4294967296)]], @(_[[memId:[0-9]*]], _[[argcId:[0-9]*]], _{{[0-9]*}}, _[[returnId:[0-9]*]]) = {
+// CHECK-DAG: _[[appId:[0-9]*]]: ⊥:★ = _[[returnEtaId:[0-9]*]] (_[[memId]], _[[argcId]]);
+// CHECK-DAG: _[[appId]]
+
+// CHECK-DAG: _[[returnEtaId]]: .Cn [%mem.M, (%Int 4294967296)], @(_{{[0-9]*}}, _{{[0-9]*}}) = {
+// CHECK-DAG: _[[retAppId:[0-9]*]]: ⊥:★ = _[[returnId]] @_[[returnEtaId]];
+// CHECK-DAG: _[[retAppId]]

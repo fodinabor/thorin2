@@ -23,7 +23,7 @@
             Requirements
         </td>
         <td class="markdownTableBodyNone">
-            <a href="https://cmake.org/"><img src="https://img.shields.io/badge/cmake-3.7-blue.svg?logo=cmake" alt="CMake"></a>
+            <a href="https://cmake.org/"><img src="https://img.shields.io/badge/cmake-3.20-blue.svg?logo=cmake" alt="CMake"></a>
             <a href="https://isocpp.org/"><img src="https://img.shields.io/badge/standard-C%2B%2B%2020-blue.svg?logo=C%2B%2B" alt="C++"></a>
             <a href="https://llvm.org/"><img src="https://img.shields.io/badge/LLVM%2FClang-13.x--14.x-blue?logo=llvm" alt="LLVM/Clang"></a>
             <a href="https://github.com/AnyDSL/thorin2/tree/master/modules"><img src="https://img.shields.io/badge/submodules-5-blue?logo=git&logoColor=white" alt="Submodules"></a>
@@ -72,8 +72,30 @@ cmake --build build -j $(nproc)
 ```
 For a `Release` build simply use `-DCMAKE_BUILD_TYPE=Release`.
 
+### Install
+
+If you want to install Thorin, specify an install prefix and build the target `install`:
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/my/local/install/prefix
+cmake --build build -j $(nproc) -t install
+```
+
+### Build Switches
+
+| CMake Switch           | Options                                  | Default      | Comment                                                                             |
+|------------------------|------------------------------------------|--------------|-------------------------------------------------------------------------------------|
+| `CMAKE_BUILD_TYPE`     | `Debug` \| `Release` \| `RelWithDebInfo` | `Debug`      | Build type.                                                                         |
+| `CMAKE_INSTALL_PREFIX` |                                          | `/usr/local` | Install prefix.                                                                     |
+| `THORIN_BUILD_DOCS`    | `ON` \| `OFF`                            | `OFF`        | If `ON`, Thorin will build the documentation <br> (requires Doxygen).               |
+| `THORIN_BUILD_TESTING` | `ON` \| `OFF`                            | `OFF`        | If `ON`, Thorin will build all of Thorin's own tests.                               |
+| `THORIN_ENABLE_CHECKS` | `ON` \| `OFF`                            | `ON`         | If `ON`, enables expensive runtime checks <br> (requires `CMAKE_BUILD_TYPE=Debug`). |
+
 ### Tests
 
+Run the [lit](https://llvm.org/docs/CommandGuide/lit.html) testsuite with:
+```sh
+cmake --build build -t check
+```
 Run the tests within the `build` folder with:
 ```sh
 ctest
@@ -81,13 +103,6 @@ ctest
 In addition, you can enable [Valgrind](https://valgrind.org/) with:
 ```sh
 ctest -T memcheck
-```
-
-### Documentation
-
-You can build the documentation locally from the root folder with:
-```sh
-doxygen
 ```
 
 ## Dependencies

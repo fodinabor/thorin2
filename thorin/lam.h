@@ -39,6 +39,7 @@ public:
 
     /// @name virtual methods
     ///@{
+    size_t first_dependend_op() { return 1; }
     const Def* rebuild(World&, const Def*, Defs, const Def*) const override;
     Pi* stub(World&, const Def*, const Def*) override;
     const Pi* restructure() override;
@@ -70,6 +71,7 @@ public:
     bool is_returning() const { return type()->is_returning(); }
     const Def* dom() const { return type()->dom(); }
     const Def* codom() const { return type()->codom(); }
+    const Pi* ret_pi() const { return type()->ret_pi(); }
     THORIN_PROJ(dom, const)
     THORIN_PROJ(codom, const)
     ///@}
@@ -82,7 +84,6 @@ public:
 
     /// @name vars
     ///@{
-    const Def* mem_var(const Def* dbg = {});
     const Def* ret_var(const Def* dbg = {});
     ///@}
 
@@ -123,10 +124,10 @@ public:
     Lam* stub(World&, const Def*, const Def*) override;
     ///@}
 
-    /// @name get/set fields - CC
+    /// @name get/set flags - CC
     ///@{
-    CC cc() const { return CC(fields()); }
-    void set_cc(CC cc) { fields_ = u64(cc); }
+    CC cc() const { return CC(flags()); }
+    void set_cc(CC cc) { flags_ = u64(cc); }
     ///@}
 
     static constexpr auto Node = Node::Lam;
@@ -171,7 +172,7 @@ public:
     friend class World;
 };
 
-inline Stream& operator<<(Stream& s, std::pair<Lam*, Lam*> p) {
+inline std::ostream& operator<<(std::ostream& s, std::pair<Lam*, Lam*> p) {
     return operator<<(s, std::pair<const Def*, const Def*>(p));
 }
 

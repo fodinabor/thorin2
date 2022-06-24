@@ -1,4 +1,4 @@
-# Passes
+# Passes {#passes}
 
 [TOC]
 
@@ -20,7 +20,7 @@ You can put together your optimization pipeline like so:
     opt.run();
 ```
 Note how some passes depend on other passes.
-For example, the [CopyProp](@ref thorin::CopyProp)agation depends on the [BetaRed](@ref thorin::BetaRed)uction and [EtaExp](@ref thorin::EtaExp)ansion.
+For example, the [CopyProp](@ref thorin::mem::CopyProp)agation depends on the [BetaRed](@ref thorin::BetaRed)uction and [EtaExp](@ref thorin::EtaExp)ansion.
 In contrast to traditional passes in compilers, Thorin's [PassMan](@ref thorin::PassMan) will run all passes in tandem and combine the obtained results into the most optimal solution and, hence, avoid the dreaded *phase-ordering problem*.
 
 There are two kind of passes in Thorin:
@@ -33,15 +33,15 @@ In order to write a [rewrite pass](@ref thorin::RWPass), you have to inherit fro
 Usually, you are only interested in looking for code patterns that only occur in specific nominals - typically [Lam](@ref thorin::Lam)bdas.
 You can filter for these nominals by passing it as template parameter to [RWPass](@ref thorin::RWPass) when inherting from it.
 The main hook to the [PassMan](@ref thorin::PassMan), is the [rewrite](@ref thorin::Pass::rewrite) method.
-As an example, let's have a look at the [Alloc2Malloc](@ref thorin::Alloc2Malloc) pass.
+As an example, let's have a look at the [Alloc2Malloc](@ref thorin::mem::Alloc2Malloc) pass.
 It rewrites `alloc`/`slot` calls into their more verbose siblings `malloc`/`mslot` that make the size of the alloc'ed type explicit:
 This is `alloc2malloc.h`:
-\include "../thorin/pass/rw/alloc2malloc.h"
+\include "dialects/mem/passes/rw/alloc2malloc.h"
 
 The actual `rewrite` simply inspects the current `def`.
 If this happens to be a `alloc`/`slot`, it will simply return the more explicit counterpart.
 This is `alloc2malloc.cpp`:
-\include "../thorin/pass/rw/alloc2malloc.cpp"
+\include "dialects/mem/passes/rw/alloc2malloc.cpp"
 
 ## Fixed-Point Pass
 
@@ -93,4 +93,4 @@ The reason is that the very program you are constructing is the **only** way to 
 Eventually, you will need to create nominals during a [fixed-point pass](@ref thorin::FPPass).
 You must be super cautious to remember in which exact context you created said nominal.
 If you ever come into the same situation again (due to backtracking) you have to make sure that you return the **very same** nominal.
-Otherwise, if you create a different nominal, the @ref thorin::PassMan will most likely diverge as it will constantly backtrack while creating new nominals that the other passes don't know anything about.
+Otherwise, if you create a different nominal, the [PassMan](@ref thorin::PassMan) will most likely diverge as it will constantly backtrack while creating new nominals that the other passes don't know anything about.
