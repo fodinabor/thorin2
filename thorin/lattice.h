@@ -112,7 +112,8 @@ public:
     friend class World;
 };
 
-/// `test value, probe, match, clash` tests whether [value](@ref Test::value) currently holds **type** [probe](@ref Test::probe).
+/// `test value, probe, match, clash` tests whether [value](@ref Test::value) currently holds **type** [probe](@ref
+/// Test::probe).
 /// @note
 /// * [probe](@ref Test::probe) is a **type**!
 /// * This operation yields [match](@ref Test::match), if `true`, and [clash](@ref Test::clash) otherwise.

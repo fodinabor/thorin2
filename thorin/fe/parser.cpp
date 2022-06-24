@@ -185,11 +185,10 @@ const Def* Parser::parse_extract(Tracker track, const Def* lhs, Tok::Prec p) {
     return world().extract(lhs, rhs, track);
 }
 
-
 const Def* Parser::parse_insert() {
     eat(Tok::Tag::K_ins);
     auto track = tracker();
-    
+
     expect(Tok::Tag::D_paren_l, "opening paren for insert arguments");
 
     auto target = parse_expr("insert target");

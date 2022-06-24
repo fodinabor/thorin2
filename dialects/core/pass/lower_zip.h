@@ -18,7 +18,7 @@ public:
     void enter() override { found_zip_.reset(); }
 
     const Def* rewrite(const Def*) override;
-    
+
     static PassTag* ID();
 
 private:
