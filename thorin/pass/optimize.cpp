@@ -18,6 +18,8 @@ void optimize(World& world, PipelineBuilder& builder) {
 
     PassMan::run<LamSpec>(world);
 
+    builder.execute_free_opts(world);
+
     auto codegen_prep = builder.codegen_prep_phase(world);
     codegen_prep->run();
 }

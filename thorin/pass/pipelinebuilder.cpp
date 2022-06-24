@@ -23,6 +23,8 @@ void PipelineBuilder::extend_codegen_prep_phase(std::function<void(PassMan&)> ex
     codegen_prep_phase_extensions_.push_back(extension);
 }
 
+void PipelineBuilder::extend_free_opts(std::function<void(World&)> extension) { free_opts_.push_back(extension); }
+
 std::unique_ptr<PassMan> PipelineBuilder::opt_phase(World& world) {
     auto man = std::make_unique<PassMan>(world);
 
@@ -46,4 +48,8 @@ std::unique_ptr<PassMan> PipelineBuilder::codegen_prep_phase(World& world) {
     for (const auto& ext : codegen_prep_phase_extensions_) ext(*man);
 
     return man;
+}
+
+void PipelineBuilder::execute_free_opts(World& world) {
+    for (auto& free_opt : free_opts_) free_opt(world);
 }
