@@ -160,39 +160,6 @@ World::World(std::string_view name)
         ty->set_codom(pi(T, R));
         data_.atomic_ = axiom(nullptr, ty, Axiom::Global_Dialect, Tag::Atomic, 0, dbg("atomic"));
     }
-    { // zip: [r: nat, s: «r; nat»] -> [n_i: nat, Is: «n_i; *», n_o: nat, Os: «n_o; *», f: «i: n_i; Is#i»
-        // -> «o: n_o; Os#o»] -> «i: n_i; «s; Is#i»» -> «o: n_o; «s; Os#o»»
-        // TODO select which Is/Os to zip
-        auto rs = nom_sigma(type(), 2);
-        rs->set(0, nat);
-        rs->set(1, arr(rs->var(0, dbg("r")), nat));
-        auto rs_pi = nom_pi(type())->set_dom(rs);
-        auto s     = rs_pi->var(1, dbg("s"));
-
-        // [n_i: nat, Is: «n_i; *», n_o: nat, Os: «n_o; *», f: «i: n_i; Is#i» -> «o: n_o; Os#o»,]
-        auto is_os = nom_sigma(type<1>(), 5);
-        is_os->set(0, nat);
-        is_os->set(1, arr(is_os->var(0, dbg("n_i")), type()));
-        is_os->set(2, nat);
-        is_os->set(3, arr(is_os->var(2, dbg("n_o")), type()));
-        auto f_i = nom_arr()->set_shape(is_os->var(0_u64));
-        auto f_o = nom_arr()->set_shape(is_os->var(2_u64));
-        f_i->set_body(extract(is_os->var(1, dbg("Is")), f_i->var()));
-        f_o->set_body(extract(is_os->var(3, dbg("Os")), f_o->var()));
-        is_os->set(4, pi(f_i, f_o));
-        auto is_os_pi = nom_pi(type())->set_dom(is_os);
-
-        // «i: n_i; «s; Is#i»» -> «o: n_o; «s; Os#o»»
-        auto dom = nom_arr()->set_shape(is_os_pi->var(0_u64, dbg("n_i")));
-        auto cod = nom_arr()->set_shape(is_os_pi->var(2_u64, dbg("n_o")));
-        dom->set_body(arr(s, extract(is_os_pi->var(1, dbg("Is")), dom->var())));
-        cod->set_body(arr(s, extract(is_os_pi->var(3, dbg("Os")), cod->var())));
-
-        is_os_pi->set_codom(pi(dom, cod));
-        rs_pi->set_codom(is_os_pi);
-
-        data_.zip_ = axiom(normalize_zip, rs_pi, Axiom::Global_Dialect, Tag::Zip, 0, dbg("zip"));
-    }
 }
 
 World::~World() {

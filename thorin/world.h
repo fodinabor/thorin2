@@ -374,7 +374,6 @@ public:
     const Axiom* ax(Wrap  o)  const { return data_.Wrap_ [size_t(o)]; }
     const Axiom* ax_atomic()  const { return data_.atomic_;  }
     const Axiom* ax_bitcast() const { return data_.bitcast_; }
-    const Axiom* ax_zip()     const { return data_.zip_;     }
     // clang-format on
     ///@}
 
@@ -725,7 +724,6 @@ private:
         const Axiom* bitcast_;
         const Axiom* type_int_;
         const Axiom* type_real_;
-        const Axiom* zip_;
         absl::flat_hash_map<u64, const Axiom*> axioms_;
         std::string name_;
         Externals externals_;
