@@ -132,7 +132,22 @@
 ///
 .ax %core.div(sdiv, udiv, srem, urem): Π w: .Nat -> [%mem.M, %Int w, %Int w] -> [%mem.M, %Int w], normalize_div;
 ///
+/// ### %core.conv
+///
+/// Bit width (and signedness) conversion for `%Int -> %Int` and `%Real -> %Real` as well as `%Real -> %Int` and `%Int -> %Real` conversions.
+///
+.ax %core.conv(s2s, u2u): Π [dw: .Nat, sw: .Nat] -> %Int sw -> %Int dw, normalize_conv;
+.ax %core.conv(s2r, u2r): Π [dw: .Nat, sw: .Nat] -> %Int sw -> %Real dw, normalize_conv;
+.ax %core.conv(r2s, r2u): Π [dw: .Nat, sw: .Nat] -> %Real sw -> %Int dw, normalize_conv;
+.ax %core.conv(r2r): Π [dw: .Nat, sw: .Nat] -> %Real sw -> %Real dw, normalize_conv;
+///
+/// ### %core.bitcast
+///
+/// Bitcast to reinterpret a value as another type.
+/// Can be used for pointer / integer conversions as well as integer / nat conversions.
+///
+.ax %core.bitcast: Π [D: *, S: *] -> S -> D, normalize_bitcast;
+///
 /// ### %core.zip
 ///
 .ax %core.zip: Π [r: .Nat, s: «r; .Nat»] -> Π [n_i: .Nat, Is: «n_i; *», n_o: .Nat, Os: «n_o; *», f: («i: n_i; Is#i» -> «o: n_o; Os#o»)] -> «i: n_i; «s; Is#i»» -> «o: n_o; «s; Os#o»», normalize_zip;
-
