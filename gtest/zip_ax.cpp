@@ -17,7 +17,7 @@
 
 #include "dialects/affine/affine.h"
 #include "dialects/core.h"
-#include "dialects/core/pass/lower_zip.h"
+#include "dialects/core/pass/rw/lower_zip.h"
 #include "dialects/mem/mem.h"
 
 using namespace thorin;
