@@ -1,5 +1,6 @@
 #include "dialects/core/be/ll/ll.h"
 
+#include <bit>
 #include <deque>
 #include <fstream>
 #include <iomanip>
@@ -129,7 +130,7 @@ std::string CodeGen::convert(const Def* type) {
         auto size = isa_sized_type(type);
         if (size->isa<Top>() || !size->isa<Lit>()) return types_[type] = "i64";
         if (auto width = mod2width(as_lit(size))) {
-            switch (*width) {
+            switch (std::bit_ceil(*width)) {
                 // clang-format off
                 case  1: return types_[type] = "i1";
                 case  2:
@@ -457,7 +458,7 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
             auto size = isa_sized_type(lit->type());
             if (size->isa<Top>() || !size->isa<Lit>()) return std::to_string(lit->get<nat_t>());
             if (auto mod = mod2width(as_lit(size))) {
-                switch (*mod) {
+                switch (std::bit_ceil(*mod)) {
                     // clang-format off
                     case  0: return {};
                     case  1: return std::to_string(lit->get< u1>());
@@ -712,7 +713,7 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
         auto size2width = [&](const Def* type) {
             if (auto int_ = isa<Tag::Int>(type)) {
                 if (int_->arg()->isa<Top>() || !int_->arg()->isa<Lit>()) return 64_u64;
-                if (auto width = mod2width(as_lit(int_->arg()))) return *width;
+                if (auto width = mod2width(as_lit(int_->arg()))) return std::bit_ceil(*width);
                 return 64_u64;
             }
             return as_lit(as<Tag::Real>(type)->arg());
@@ -746,7 +747,7 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
         auto size2width = [&](const Def* type) {
             if (auto int_ = isa<Tag::Int>(type)) {
                 if (int_->arg()->isa<Top>()) return 64_u64;
-                if (auto width = mod2width(as_lit(int_->arg()))) return *width;
+                if (auto width = mod2width(as_lit(int_->arg()))) return std::bit_ceil(*width);
                 return 64_u64;
             }
             return as_lit(as<Tag::Real>(type)->arg());
