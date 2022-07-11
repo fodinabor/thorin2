@@ -14,6 +14,7 @@
 #include "thorin/pass/rw/scalarize.h"
 
 #include "dialects/mem/mem.h"
+#include "dialects/mem/passes/arr2mem.h"
 #include "dialects/mem/passes/fp/copy_prop.h"
 #include "dialects/mem/passes/fp/ssa_constr.h"
 #include "dialects/mem/passes/rw/alloc2malloc.h"
@@ -35,6 +36,7 @@ extern "C" THORIN_EXPORT DialectInfo thorin_get_dialect_info() {
             man.add<mem::RememElim>();
             man.add<mem::Alloc2Malloc>();
         });
+        builder.extend_free_opts(&mem::arr2mem);
             },
             nullptr, [](Normalizers& normalizers) { mem::register_normalizers(normalizers); }};
 }
