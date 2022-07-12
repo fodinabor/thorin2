@@ -1,5 +1,4 @@
-#ifndef THORIN_LATTICE_H
-#define THORIN_LATTICE_H
+#pragma once
 
 #include "thorin/def.h"
 
@@ -203,5 +202,3 @@ public:
 };
 
 } // namespace thorin
-
-#endif

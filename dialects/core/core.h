@@ -1,9 +1,8 @@
-#ifndef DIALECTS_CORE_CORE_H
-#define DIALECTS_CORE_CORE_H
+#pragma once
 
 #include "thorin/world.h"
 
-#include "dialects/core.h"
+#include "dialects/core/autogen.h"
 
 namespace thorin::core {
 
@@ -133,5 +132,3 @@ inline const Def* insert_unsafe(const Def* d, u64 i, const Def* val, const Def* 
 ///@}
 
 } // namespace thorin::core
-
-#endif

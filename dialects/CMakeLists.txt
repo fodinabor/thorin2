@@ -1,38 +1,31 @@
-# TODO can we get rid of this line?
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib/thorin)
-
-add_thorin_dialect(mem
+add_thorin_dialect(affine
     SOURCES
-        mem/passes/fp/copy_prop.cpp
-        mem/passes/fp/copy_prop.h
-        mem/passes/fp/ssa_constr.cpp
-        mem/passes/fp/ssa_constr.h
-        mem/passes/rw/alloc2malloc.cpp
-        mem/passes/rw/alloc2malloc.h
-        mem/passes/rw/remem_elim.cpp
-        mem/passes/rw/remem_elim.h
-        mem/mem.cpp
-        mem/mem.h
-        mem/normalizers.cpp
-    HEADER_DEPENDS
+        affine/affine.cpp
+        affine/affine.h
+        affine/passes/lower_for.cpp
+        affine/passes/lower_for.h
+    DEPENDS
         core
     INSTALL
 )
 
 add_thorin_dialect(clos
     SOURCES
-        clos/pass/fp/lower_typed_clos_prep.h
-        clos/pass/fp/lower_typed_clos_prep.cpp
-        clos/pass/rw/branch_clos_elim.h
-        clos/pass/rw/branch_clos_elim.cpp
-        clos/pass/rw/clos_conv_prep.h
-        clos/pass/rw/clos_conv_prep.cpp
-        clos/pass/rw/clos2sjlj.h
-        clos/pass/rw/clos2sjlj.cpp
-        clos/clos_conv.h
+        clos/clos.cpp
+        clos/clos.h
         clos/clos_conv.cpp
-        clos/lower_typed_clos.h
+        clos/clos_conv.h
         clos/lower_typed_clos.cpp
+        clos/lower_typed_clos.h
+        clos/normalizers.cpp
+        clos/pass/fp/lower_typed_clos_prep.cpp
+        clos/pass/fp/lower_typed_clos_prep.h
+        clos/pass/rw/branch_clos_elim.cpp
+        clos/pass/rw/branch_clos_elim.h
+        clos/pass/rw/clos2sjlj.cpp
+        clos/pass/rw/clos2sjlj.h
+        clos/pass/rw/clos_conv_prep.cpp
+        clos/pass/rw/clos_conv_prep.h
     DEPENDS
         mem
     HEADER_DEPENDS
@@ -55,13 +48,31 @@ add_thorin_dialect(core
     INSTALL
 )
 
-add_thorin_dialect(affine
+add_thorin_dialect(mem
     SOURCES
-        affine/affine.cpp
-        affine/affine.h
-        affine/passes/lower_for.cpp
-        affine/passes/lower_for.h
-    DEPENDS
+        mem/mem.cpp
+        mem/mem.h
+        mem/normalizers.cpp
+        mem/passes/fp/copy_prop.cpp
+        mem/passes/fp/copy_prop.h
+        mem/passes/fp/ssa_constr.cpp
+        mem/passes/fp/ssa_constr.h
+        mem/passes/rw/alloc2malloc.cpp
+        mem/passes/rw/alloc2malloc.h
+        mem/passes/rw/remem_elim.cpp
+        mem/passes/rw/remem_elim.h
+        mem/passes/arr2mem.cpp
+        mem/passes/arr2mem.h
+    HEADER_DEPENDS
         core
+    INSTALL
+)
+
+add_thorin_dialect(direct
+    SOURCES
+        direct/direct.cpp
+        direct/direct.h
+        direct/passes/ds2cps.cpp
+        direct/passes/ds2cps.h
     INSTALL
 )

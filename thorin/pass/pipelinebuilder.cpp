@@ -13,7 +13,7 @@
 #include "dialects/mem/passes/rw/alloc2malloc.h"
 #include "dialects/mem/passes/rw/remem_elim.h"
 
-using namespace thorin;
+namespace thorin {
 
 void PipelineBuilder::extend_opt_phase(std::function<void(PassMan&)> extension) {
     opt_phase_extensions_.push_back(extension);
@@ -53,3 +53,4 @@ std::unique_ptr<PassMan> PipelineBuilder::codegen_prep_phase(World& world) {
 void PipelineBuilder::execute_free_opts(World& world) {
     for (auto& free_opt : free_opts_) free_opt(world);
 }
+} // namespace thorin

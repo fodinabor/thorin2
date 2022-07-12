@@ -14,7 +14,7 @@ The actual *[terminals](https://en.wikipedia.org/wiki/Terminal_and_nonterminal_s
 
 #### Primary Terminals
 
-The [grammatical rules](#productions) will directly reference these *primary [terminals](https://en.wikipedia.org/wiki/Terminal_and_nonterminal_symbols)*.
+The [grammatical rules](#grammar) will directly reference these *primary [terminals](https://en.wikipedia.org/wiki/Terminal_and_nonterminal_symbols)*.
 *Secondary terminals* are [ASCII](https://en.wikipedia.org/wiki/ASCII)-only tokens that represent the **same** lexical element as its corresponding *primary token*.
 For example, the lexer doesn't care, if you use `⊥` or `.bot`.
 Both tokens are identified as `⊥`.
@@ -24,7 +24,7 @@ Both tokens are identified as `⊥`.
 | `(` `)` `[` `]` `{` `}`     |                                            | delimiters                |
 | `‹` `›` `«` `»`             | `<<` `>>` `<` `>`                          | UTF-8 delimiters          |
 | `→` `⊥` `⊤` `★` `□` `λ` `Π` | `->` `.bot` `.top` `*` `\`  <tt>\|~\|</tt> | further UTF-8 tokens      |
-| `=` `,` `;` `.` `#` `:` `@` |                                            | further tokens            |
+| `=` `,` `;` `.` `#` `:` `%` |                                            | further tokens            |
 | `<eof>`                     |                                            | marks the end of the file |
 
 #### Keywords
@@ -42,6 +42,8 @@ In addition the following keywords are *terminals*:
 | `.Sigma`    | nominal Sigma             |
 | `.def`      | nominal definition        |
 | `.external` | marks nominal as external |
+| `.ins`      | insert expression         |
+| `.insert`   | alias for `.ins`          |
 | `.module`   | starts a module           |
 | `.import`   | imports a dialect         |
 | `.Nat`      | thorin::Nat               |
@@ -57,7 +59,7 @@ The following *terminals* comprise more complicated patterns that are specified 
 | Terminal | Regular Expression                   | Comment                                                                                           |
 |----------|--------------------------------------|---------------------------------------------------------------------------------------------------|
 | Sym      | sym                                  | symbol                                                                                            |
-| Ax       | `@` sym `.` sym ( `.` sym)?          | Axiom                                                                                             |
+| Ax       | `%` sym `.` sym ( `.` sym)?          | Axiom                                                                                             |
 | L        | dec+                                 | unsigned decimal literal                                                                          |
 | L        | 0b bin+                              | unsigned binary literal                                                                           |
 | L        | 0o oct+                              | unsigned octal literal                                                                            |
@@ -98,32 +100,33 @@ However, the terminal *Ax* also uses the shorthand rule *sym*.
 ### Comments
 
 In addition, the following comments are available:
-* `/* ... */` multi-line comment
-* `//` single-line comment
-* `///` single-line comment that is put into the Markdown output (see [Emitters](@ref emitters))
+* `/* ... */`: multi-line comment
+* `//`: single-line comment
+* `///`: single-line comment for [Markdown](https://www.doxygen.nl/manual/markdown.html) [output](@ref cli):
+    - Single-line `/// xxx` comments will put `xxx` directly into the Markdown output.
+        You can put an optional space after the `///` that will be elided in the Markdown output.
+    - Everything else will be put verbatim within a [fenced code block](https://www.doxygen.nl/manual/markdown.html#md_fenced).
 
-## Grammar
+## Grammar {#grammar}
 
-Thorin's grammar is defined as a [context-free grammar](https://en.wikipedia.org/wiki/Context-free_grammar) that consists of the *terminals* defined [above](#terminals) as well as the *nonterminals* and *productions* defined [below](#productions).
+Thorin's grammar is defined as a [context-free grammar](https://en.wikipedia.org/wiki/Context-free_grammar) that consists of the *terminals* defined [above](#terminals) as well as the *nonterminals* and *productions* defined below.
 The start symbol is "m" (module).
-
-### Productions {#productions}
 
 The following tables comprise all production rules:
 
-#### Module
+### Module
 
 | Nonterminal | Right-Hand Side   | Comment | Thorin Class  |
 |-------------|-------------------|---------|---------------|
 | m           | i\* d\*           | module  | thorin::World |
 | i           | `.import` Sym `;` | import  |               |
 
-#### Declarations
+### Declarations
 
 | Nonterminal | Right-Hand Side                                                   | New Scope? | Comment                        | Thorin Class  |
 |-------------|-------------------------------------------------------------------|------------|--------------------------------|---------------|
 | d           | `.ax` Ax `:` e<sub>type</sub> `;`                                 |            | axiom                          | thorin::Axiom |
-| d           | `.let` Sym `:` e<sub>type</sub> `=` e `;`                         |            | let                            | -             |
+| d           | `.let` p  `=` e `;`                                               |            | let                            | -             |
 | d           | `.Pi` Sym ( `:` e<sub>type</sub> )? `,` e<sub>dom</sub> n         |            | nominal Pi declaration         | thorin::Pi    |
 | d           | `.lam` Sym `:` e<sub>type</sub> v? n                              |            | nominal lambda declaration     | thorin::Lam   |
 | d           | `.Arr` Sym ( `:` e<sub>type</sub> )? `,` e<sub>shape</sub> v? n   |            | nominal array declaration      | thorin::Arr   |
@@ -135,36 +138,43 @@ The following tables comprise all production rules:
 | o           | `=` e `;`                                                         |            | operand of nominal definition  | -             |
 | o           | `=` `{` e `,` ... `,` e  `}` `;`                                  | ✓          | operands of nominal definition | -             |
 
-#### Expressions
+### Patterns
 
-| Nonterminal | Right-Hand Side                                                             | New Scope? | Comment                             | Thorin Class    |
-|-------------|-----------------------------------------------------------------------------|------------|-------------------------------------|-----------------|
-| e           | `{` e `}`                                                                   | ✓          | block                               | -               |
-| e           | `*`                                                                         |            | type                                | thorin::Type    |
-| e           | L `:` e<sub>type</sub>                                                      |            | literal                             | thorin::Lit     |
-| e           | ( `.bot` or `.top` ) ( `:` e<sub>type</sub> )?                              |            | bottom/top                          | thorin::TExt    |
-| e           | Sym                                                                         |            | identifier                          | -               |
-| e           | Ax                                                                          |            | use of an axiom                     | -               |
-| e           | e e                                                                         |            | application                         | thorin::App     |
-| e           | `λ` Sym `:` e<sub>dom</sub> `→` e<sub>codom</sub>  `.` e<sub>body</sub>     | ✓          | lambda                              | thorin::Lam     |
-| e           | e<sub>dom</sub> `→` e<sub>codom</sub>                                       |            | function type                       | thorin::Pi      |
-| e           | `Π` b e<sub>dom</sub> `→` e<sub>codom</sub>                                 | ✓          | dependent function type             | thorin::Pi      |
-| e           | e `#` Sym                                                                   |            | extract via field "Sym"             | thorin::Extract |
-| e           | e `#` e<sub>index</sub>                                                     |            | extract                             | thorin::Extract |
-| e           | `.ins` `(` e `,` e `,` e ` )`                                               |            | insert                              | thorin::Insert  |
-| e           | `(` e<sub>0</sub> `,` ... `,` e<sub>n-1</sub>` )` ( `:` e<sub>type</sub> )? |            | tuple with optional type ascription | thorin::Tuple   |
-| e           | `[` b e<sub>type 0</sub> `,` ... `,` b e<sub>type n-1</sub> `]`             | ✓          | sigma                               | thorin::Sigma   |
-| e           | `‹` b e<sub>shape</sub> `;` e<sub>body</sub>`›`                             | ✓          | pack                                | thorin::Pack    |
-| e           | `«` b e<sub>shape</sub> `;` e<sub>body</sub>`»`                             | ✓          | array                               | thorin::Arr     |
-| e           | d e                                                                         |            | declaration                         | -               |
-| b           | ( Sym `:` )?                                                                |            | optional binder                     | -               |
+| Nonterminal | Right-Hand Side               | New Scope? | Comment            |
+|-------------|-------------------------------|------------|--------------------|
+| p           | Sym ( `:` e<sub>type</sub> )? |            | identifier pattern |
+| p           | `(` p `,` ... `,` p `)`       |            | tuple pattern      |
+
+### Expressions
+
+| Nonterminal | Right-Hand Side                                                               | New Scope? | Comment                             | Thorin Class    |
+|-------------|-------------------------------------------------------------------------------|------------|-------------------------------------|-----------------|
+| e           | `{` e `}`                                                                     | ✓          | block                               | -               |
+| e           | `*`                                                                           |            | type                                | thorin::Type    |
+| e           | L `:` e<sub>type</sub>                                                        |            | literal                             | thorin::Lit     |
+| e           | ( `.bot` or `.top` ) ( `:` e<sub>type</sub> )?                                |            | bottom/top                          | thorin::TExt    |
+| e           | Sym                                                                           |            | identifier                          | -               |
+| e           | Ax                                                                            |            | use of an axiom                     | -               |
+| e           | e e                                                                           |            | application                         | thorin::App     |
+| e           | `λ` Sym `:` e<sub>dom</sub> `→` e<sub>codom</sub>  `.` e<sub>body</sub>       | ✓          | lambda                              | thorin::Lam     |
+| e           | e<sub>dom</sub> `→` e<sub>codom</sub>                                         |            | function type                       | thorin::Pi      |
+| e           | `Π` b e<sub>dom</sub> `→` e<sub>codom</sub>                                   | ✓          | dependent function type             | thorin::Pi      |
+| e           | e `#` Sym                                                                     |            | extract via field "Sym"             | thorin::Extract |
+| e           | e `#` e<sub>index</sub>                                                       |            | extract                             | thorin::Extract |
+| e           | `.ins` `(` e<sub>tuple</sub> `,` e<sub>index</sub> `,` e<sub>value</sub> ` )` |            | insert                              | thorin::Insert  |
+| e           | `(` e<sub>0</sub> `,` ... `,` e<sub>n-1</sub>` )` ( `:` e<sub>type</sub> )?   |            | tuple with optional type ascription | thorin::Tuple   |
+| e           | `[` b e<sub>type 0</sub> `,` ... `,` b e<sub>type n-1</sub> `]`               | ✓          | sigma                               | thorin::Sigma   |
+| e           | `‹` b e<sub>shape</sub> `;` e<sub>body</sub>`›`                               | ✓          | pack                                | thorin::Pack    |
+| e           | `«` b e<sub>shape</sub> `;` e<sub>body</sub>`»`                               | ✓          | array                               | thorin::Arr     |
+| e           | d e                                                                           |            | declaration                         | -               |
+| b           | ( Sym `:` )?                                                                  |            | optional binder                     | -               |
 
 An elided type of
 * a literal defaults to `.Nat`,
 * a bottom/top defaults to `*`,
 * a nominals defaults to `*`.
 
-##### Precedence
+#### Precedence
 
 Expressions nesting is disambiguated according to the following precedence table (from strongest to weakest binding):
 

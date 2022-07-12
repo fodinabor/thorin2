@@ -1,4 +1,4 @@
-#include "thorin/be/h/h.h"
+#include "thorin/be/h/bootstrapper.h"
 
 #include <ranges>
 #include <sstream>
@@ -11,8 +11,7 @@
 namespace thorin::h {
 
 void Bootstrapper::emit(std::ostream& h) {
-    tab.print(h, "#ifndef THORIN_{}_H\n", dialect_);
-    tab.print(h, "#define THORIN_{}_H\n\n", dialect_);
+    tab.print(h, "#pragma once\n\n");
     tab.print(h, "#include \"thorin/axiom.h\"\n"
                  "#include \"thorin/dialects.h\"\n"
                  "#include \"thorin/tables.h\"\n\n");
@@ -109,9 +108,7 @@ void Bootstrapper::emit(std::ostream& h) {
         tab.print(h, "}} // namespace detail\n");
     }
 
-    tab.print(h, "}} // namespace thorin\n\n");
-
-    tab.print(h, "#endif\n");
+    tab.print(h, "}} // namespace thorin\n");
 }
 
 } // namespace thorin::h
