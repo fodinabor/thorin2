@@ -46,12 +46,12 @@ add_library(libthorin
     be/h/bootstrapper.h
     fe/ast.cpp
     fe/ast.h
-    fe/binder.cpp
-    fe/binder.h
     fe/lexer.cpp
     fe/lexer.h
     fe/parser.cpp
     fe/parser.h
+    fe/scopes.cpp
+    fe/scopes.h
     fe/tok.cpp
     fe/tok.h
     pass/optimize.cpp
@@ -88,6 +88,8 @@ add_library(libthorin
     util/hash.h
     util/indexmap.h
     util/indexset.h
+    util/log.cpp
+    util/log.h
     util/print.cpp
     util/print.h
     util/sys.cpp
@@ -112,7 +114,8 @@ target_include_directories(libthorin
 )
 target_link_libraries(libthorin
     PUBLIC
-        absl::flat_hash_map absl::flat_hash_set
+        absl::btree
+        absl::flat_hash_map absl::flat_hash_set 
         absl::node_hash_map absl::node_hash_set
         ${CMAKE_DL_LIBS}
 )

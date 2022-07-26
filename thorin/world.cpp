@@ -32,10 +32,10 @@ namespace thorin {
 bool World::Arena::Lock::guard_ = false;
 #endif
 
-World::World(std::string_view name)
-    : checker_(std::make_unique<Checker>(*this))
+World::World(const State& state)
+    : state_(state)
+    , checker_(std::make_unique<Checker>(*this))
     , err_(std::make_unique<ErrorHandler>()) {
-    data_.name_        = name.empty() ? "module" : name;
     data_.univ_        = insert<Univ>(0, *this);
     data_.lit_univ_0_  = lit_univ(0);
     data_.lit_univ_1_  = lit_univ(1);
@@ -49,6 +49,7 @@ World::World(std::string_view name)
     data_.lit_nat_0_   = lit_nat(0);
     data_.lit_nat_1_   = lit_nat(1);
     data_.lit_nat_max_ = lit_nat(nat_t(-1));
+    data_.exit_        = nom_lam(cn(type_bot()), dbg("exit"));
     auto nat           = type_nat();
 
     { // int/real: w: Nat -> *
@@ -162,21 +163,11 @@ World::World(std::string_view name)
     }
 }
 
+World::World(std::string_view name /* = {}*/)
+    : World(State(name)) {}
+
 World::~World() {
     for (auto def : data_.defs_) def->~Def();
-}
-
-World World::stub() {
-    World w(name());
-    w.ostream_                 = ostream_;
-    w.state_                   = state_;
-    w.data_.imported_dialects_ = data_.imported_dialects_;
-
-    // bring dialects' axioms into new world.
-    Rewriter rewriter{w};
-    for (const auto& ax : data_.axioms_) rewriter.rewrite(ax.second);
-
-    return w;
 }
 
 /*
@@ -184,7 +175,8 @@ World World::stub() {
  */
 
 const Def* World::app(const Def* callee, const Def* arg, const Def* dbg) {
-    auto pi = callee->type()->as<Pi>();
+    auto pi = callee->type()->isa<Pi>();
+    if (!pi) type_err(dbg->loc(), "called expression '{}' is not of function type", callee);
 
     if (err()) {
         if (!checker_->assignable(pi->dom(), arg, dbg)) err()->ill_typed_app(callee, arg, dbg);
@@ -276,6 +268,8 @@ const Def* World::tuple_str(std::string_view s, const Def* dbg) {
 }
 
 const Def* World::extract(const Def* d, const Def* index, const Def* dbg) {
+    if (!index) return nullptr; // might occur when World is frozen
+
     if (index->isa<Arr>() || index->isa<Pack>()) {
         DefArray ops(as_lit(index->arity()), [&](size_t) { return extract(d, index->ops().back()); });
         return index->isa<Arr>() ? sigma(ops, dbg) : tuple(ops, dbg);
@@ -499,7 +493,7 @@ const Def* World::test(const Def* value, const Def* probe, const Def* match, con
         // TODO proper error msg
         assert(m_pi && c_pi);
         auto a = isa_lit(m_pi->dom()->arity());
-        assert(a && *a == 2);
+        assert_unused(a && *a == 2);
         assert(checker_->equiv(m_pi->dom(2, 0_s), c_pi->dom(), nullptr));
     }
 
@@ -553,56 +547,6 @@ void World::visit(VisitFn f) const {
         for (auto nom : scope.free_noms()) noms.push(nom);
     }
 }
-
-/*
- * logging
- */
-
-// clang-format off
-std::string_view World::level2acro(LogLevel level) {
-    switch (level) {
-        case LogLevel::Debug:   return "D";
-        case LogLevel::Verbose: return "V";
-        case LogLevel::Info:    return "I";
-        case LogLevel::Warn:    return "W";
-        case LogLevel::Error:   return "E";
-        default: unreachable();
-    }
-}
-
-LogLevel World::str2level(std::string_view s) {
-    if (false) {}
-    else if (s == "debug"  ) return LogLevel::Debug;
-    else if (s == "verbose") return LogLevel::Verbose;
-    else if (s == "info"   ) return LogLevel::Info;
-    else if (s == "warn"   ) return LogLevel::Warn;
-    else if (s == "error"  ) return LogLevel::Error;
-    else throw std::invalid_argument("invalid log level");
-}
-
-int World::level2color(LogLevel level) {
-    switch (level) {
-        case LogLevel::Debug:   return 4;
-        case LogLevel::Verbose: return 4;
-        case LogLevel::Info:    return 2;
-        case LogLevel::Warn:    return 3;
-        case LogLevel::Error:   return 1;
-        default: unreachable();
-    }
-}
-// clang-format on
-
-#ifdef THORIN_COLOR_TERM
-std::string World::colorize(std::string_view str, int color) {
-    if (isatty(fileno(stdout))) {
-        const char c = '0' + color;
-        return "\033[1;3" + (c + ('m' + std::string(str))) + "\033[0m";
-    }
-    return std::string(str);
-}
-#else
-std::string World::colorize(std::string_view str, int) { return std::string(str); }
-#endif
 
 void World::set_error_handler(std::unique_ptr<ErrorHandler>&& err) { err_ = std::move(err); }
 
