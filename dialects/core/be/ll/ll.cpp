@@ -451,6 +451,15 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
         return prev;
     };
 
+    auto size2width = [&](const Def* type) {
+        if (auto int_ = isa<Tag::Int>(type)) {
+            if (int_->arg()->isa<Top>() || !int_->arg()->isa<Lit>()) return 64_u64;
+            if (auto width = mod2width(as_lit(int_->arg()))) return std::bit_ceil(*width);
+            return 64_u64;
+        }
+        return as_lit(as<Tag::Real>(type)->arg());
+    };
+
     if (auto lit = def->isa<Lit>()) {
         if (lit->type()->isa<Nat>()) {
             return std::to_string(lit->get<nat_t>());
@@ -710,15 +719,6 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
         auto src_t = convert(conv->arg()->type());
         auto dst_t = convert(conv->type());
 
-        auto size2width = [&](const Def* type) {
-            if (auto int_ = isa<Tag::Int>(type)) {
-                if (int_->arg()->isa<Top>() || !int_->arg()->isa<Lit>()) return 64_u64;
-                if (auto width = mod2width(as_lit(int_->arg()))) return std::bit_ceil(*width);
-                return 64_u64;
-            }
-            return as_lit(as<Tag::Real>(type)->arg());
-        };
-
         nat_t s_src = size2width(conv->arg()->type());
         nat_t s_dst = size2width(conv->type());
 
@@ -743,15 +743,6 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
         auto src   = emit(conv->arg());
         auto src_t = convert(conv->arg()->type());
         auto dst_t = convert(conv->type());
-
-        auto size2width = [&](const Def* type) {
-            if (auto int_ = isa<Tag::Int>(type)) {
-                if (int_->arg()->isa<Top>()) return 64_u64;
-                if (auto width = mod2width(as_lit(int_->arg()))) return std::bit_ceil(*width);
-                return 64_u64;
-            }
-            return as_lit(as<Tag::Real>(type)->arg());
-        };
 
         nat_t s_src = size2width(conv->arg()->type());
         nat_t s_dst = size2width(conv->type());
@@ -786,7 +777,27 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
         if (src_type_ptr)                 return bb.assign(name, "ptrtoint {} {} to {}", src_t, src, dst_t);
         if (dst_type_ptr)                 return bb.assign(name, "inttoptr {} {} to {}", src_t, src, dst_t);
         // clang-format on
-        return bb.assign(name, "bitcast {} {} to {}", src_t, src, dst_t);
+
+        auto size2width = [&](const Def* type) {
+            if (type->isa<Nat>()) return 64_u64;
+            if (auto int_ = isa<Tag::Int>(type)) {
+                if (int_->arg()->isa<Top>() || !int_->arg()->isa<Lit>()) return 64_u64;
+                if (auto width = mod2width(as_lit(int_->arg()))) return std::bit_ceil(*width);
+                return 64_u64;
+            }
+            return 0_u64;
+        };
+
+        auto src_size = size2width(bitcast->arg()->type());
+        auto dst_size = size2width(bitcast->type());
+
+        op = "bitcast";
+        if (src_size && dst_size) {
+            if (src_size == dst_size) return src;
+            op = (src_size < dst_size) ? "zext" : "trunc";
+        }
+
+        return bb.assign(name, "{} {} {} to {}", op, src_t, src, dst_t);
     } else if (auto bitcast = match<core::bitcast>(def)) {
         auto dst_type_ptr = match<mem::Ptr>(bitcast->type());
         auto src_type_ptr = match<mem::Ptr>(bitcast->arg()->type());
@@ -800,7 +811,26 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
         if (src_type_ptr)                 return bb.assign(name, "ptrtoint {} {} to {}", src_t, src, dst_t);
         if (dst_type_ptr)                 return bb.assign(name, "inttoptr {} {} to {}", src_t, src, dst_t);
         // clang-format on
-        return bb.assign(name, "bitcast {} {} to {}", src_t, src, dst_t);
+        auto size2width = [&](const Def* type) {
+            if (type->isa<Nat>()) return 64_u64;
+            if (auto int_ = isa<Tag::Int>(type)) {
+                if (int_->arg()->isa<Top>() || !int_->arg()->isa<Lit>()) return 64_u64;
+                if (auto width = mod2width(as_lit(int_->arg()))) return std::bit_ceil(*width);
+                return 64_u64;
+            }
+            return 0_u64;
+        };
+
+        auto src_size = size2width(bitcast->arg()->type());
+        auto dst_size = size2width(bitcast->type());
+
+        op = "bitcast";
+        if (src_size && dst_size) {
+            if (src_size == dst_size) return src;
+            op = (src_size < dst_size) ? "zext" : "trunc";
+        }
+
+        return bb.assign(name, "{} {} {} to {}", op, src_t, src, dst_t);
     } else if (auto lea = match<mem::lea>(def)) {
         auto [ptr, idx] = lea->args<2>();
         auto ll_ptr     = emit(ptr);

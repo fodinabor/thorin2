@@ -10,7 +10,11 @@
 extern "C" THORIN_EXPORT thorin::DialectInfo thorin_get_dialect_info() {
     return {"direct",
             [](thorin::PipelineBuilder& builder) {
-        builder.extend_opt_phase([](thorin::PassMan& man) { man.add<thorin::direct::DS2CPS>(); });
+                builder.extend_opt_phase([](thorin::PassMan& man) { man.add<thorin::direct::DS2CPS>(); });
             },
             nullptr, nullptr};
+}
+
+extern "C" THORIN_EXPORT thorin::IPass* thorin_add_direct_ds2cps(thorin::PassMan& man) {
+    return man.add<thorin::direct::DS2CPS>();
 }

@@ -103,7 +103,7 @@ static const Def* fold(World& world, const Def* type, const App* callee, const D
     if (la && lb) {
         nat_t width;
         [[maybe_unused]] bool nsw = false, nuw = false;
-        if constexpr (std::is_same_v<Op, Wrap>) {
+        if constexpr (isaWrap) {
             auto [mode, w] = callee->args<2>(as_lit<nat_t>);
             nsw            = mode & WMode::nsw;
             nuw            = mode & WMode::nuw;

@@ -26,6 +26,7 @@ public:
 private:
     World& world_;
     Def2Def rewritten_;
+    Def2Def val2mem_;
     std::vector<Lam*> noms_;
     Arr2MemAnalysis analysis_;
 };
