@@ -16,7 +16,7 @@
 #include "thorin/pass/pass.h"
 
 #include "dialects/affine/affine.h"
-#include "dialects/core.h"
+#include "dialects/core/core.h"
 #include "dialects/core/pass/rw/lower_zip.h"
 #include "dialects/mem/mem.h"
 
@@ -30,11 +30,11 @@ TEST(Zip, fold) {
     Normalizers normalizers;
     auto mem_d = Dialect::load("mem", {});
     mem_d.register_normalizers(normalizers);
-    Parser::import_module(w, "mem", {}, &normalizers);
+    fe::Parser::import_module(w, "mem", {}, &normalizers);
 
     auto core_d = Dialect::load("core", {});
     core_d.register_normalizers(normalizers);
-    Parser::import_module(w, "core", {}, &normalizers);
+    fe::Parser::import_module(w, "core", {}, &normalizers);
 
     // clang-format off
     auto a = w.tuple({w.tuple({w.lit_int( 0), w.lit_int( 1), w.lit_int( 2)}),
@@ -63,11 +63,11 @@ TEST_P(ZipAxiomTest, fold) {
     Normalizers normalizers;
     auto mem_d = Dialect::load("mem", {});
     mem_d.register_normalizers(normalizers);
-    Parser::import_module(w, "mem", {}, &normalizers);
+    fe::Parser::import_module(w, "mem", {}, &normalizers);
 
     auto core_d = Dialect::load("core", {});
     core_d.register_normalizers(normalizers);
-    Parser::import_module(w, "core", {}, &normalizers);
+    fe::Parser::import_module(w, "core", {}, &normalizers);
 
     auto i32_t = w.type_int_width(32);
 
@@ -96,15 +96,15 @@ TEST_P(ZipAxiomTest, zip_dyn) {
     Normalizers normalizers;
     auto mem_d = Dialect::load("mem", {});
     mem_d.register_normalizers(normalizers);
-    Parser::import_module(w, "mem", {}, &normalizers);
+    fe::Parser::import_module(w, "mem", {}, &normalizers);
 
     auto core_d = Dialect::load("core", {});
     core_d.register_normalizers(normalizers);
-    Parser::import_module(w, "core", {}, &normalizers);
+    fe::Parser::import_module(w, "core", {}, &normalizers);
 
     auto affine_d = Dialect::load("affine", {});
     affine_d.register_normalizers(normalizers);
-    Parser::import_module(w, "affine", {}, &normalizers);
+    fe::Parser::import_module(w, "affine", {}, &normalizers);
 
     auto mem_t  = mem::type_mem(w);
     auto i8_t   = w.type_int_width(8);
@@ -143,7 +143,7 @@ TEST_P(ZipAxiomTest, zip_dyn) {
         auto [a_ptr, b_ptr]  = ab_ptr->projs<2>();
         // auto [b_mem, b_ptr]     = w.op_load(a_mem, w.op_lea(ptr, w.lit_int_width(1, 1)))->projs<2>();
         auto [len_mem, arr_len] = mem::op_load(a_mem, arr_len_slot)->projs<2>();
-        auto nat_arr_len        = w.op_bitcast(w.type_nat(), w.op(Conv::u2u, i64_t, arr_len));
+        auto nat_arr_len        = core::op_bitcast(w.type_nat(), w.op(Conv::u2u, i64_t, arr_len));
         auto a                  = w.pack(nat_arr_len, w.lit_int(i32_t, 0_u32));
         auto b                  = w.pack(nat_arr_len, w.lit_int(i32_t, 0_u32));
         auto accumulator_type   = w.sigma({a_ptr->type(), b_ptr->type(), a->type(), b->type()});

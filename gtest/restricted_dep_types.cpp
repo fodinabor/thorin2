@@ -71,18 +71,18 @@ TEST(RestrictedDependentTypes, join_singleton) {
         });
         cases.emplace_back(
             [](World& w, auto R, auto, auto Exp, auto exp_lam, auto DT, auto RW, auto i32_t, auto i64_t) {
-            EXPECT_NO_THROW( // no type error
-                w.app(exp_lam,
-                      {i64_t, R, core::op_bitcast(w.app(Exp, {w.vel(DT, i64_t), w.vel(RW, R)}), w.lit(i32_t, 1000)),
-                       w.nom_lam(w.cn(i64_t), nullptr)}));
-        });
+                EXPECT_NO_THROW( // no type error
+                    w.app(exp_lam,
+                          {i64_t, R, core::op_bitcast(w.app(Exp, {w.vel(DT, i64_t), w.vel(RW, R)}), w.lit(i32_t, 1000)),
+                           w.nom_lam(w.cn(i64_t), nullptr)}));
+            });
         cases.emplace_back(
             [](World& w, auto, auto W, auto Exp, auto exp_lam, auto DT, auto RW, auto i32_t, auto i64_t) {
-            EXPECT_NO_THROW( // no type error
-                w.app(exp_lam,
-                      {i64_t, W, core::op_bitcast(w.app(Exp, {w.vel(DT, i64_t), w.vel(RW, W)}), w.lit(i32_t, 1000)),
-                       w.nom_lam(w.cn(i64_t), nullptr)}));
-        });
+                EXPECT_NO_THROW( // no type error
+                    w.app(exp_lam,
+                          {i64_t, W, core::op_bitcast(w.app(Exp, {w.vel(DT, i64_t), w.vel(RW, W)}), w.lit(i32_t, 1000)),
+                           w.nom_lam(w.cn(i64_t), nullptr)}));
+            });
         cases.emplace_back([](World& w, auto R, auto, auto Exp, auto exp_lam, auto DT, auto RW, auto i32_t, auto) {
             EXPECT_NONFATAL_FAILURE( // disable until we have vel type checking..
                 {
@@ -189,12 +189,12 @@ TEST(RestrictedDependentTypes, join_singleton) {
         });
         cases.emplace_back(
             [](World& w, auto, auto W, auto Exp, auto exp_lam, auto DT, auto RW, auto i32_t, auto i64_t) {
-            EXPECT_THROW( // W type error
-                w.app(exp_lam,
-                      {i64_t, core::op_bitcast(w.app(Exp, {w.vel(DT, i64_t), w.vel(RW, W)}), w.lit(i32_t, 1000)),
-                       w.nom_lam(w.cn(i64_t), nullptr)}),
-                TypeError);
-        });
+                EXPECT_THROW( // W type error
+                    w.app(exp_lam,
+                          {i64_t, core::op_bitcast(w.app(Exp, {w.vel(DT, i64_t), w.vel(RW, W)}), w.lit(i32_t, 1000)),
+                           w.nom_lam(w.cn(i64_t), nullptr)}),
+                    TypeError);
+            });
         cases.emplace_back([](World& w, auto, auto W, auto Exp, auto exp_lam, auto DT, auto RW, auto, auto) {
             EXPECT_THROW( // float + W type error (note, the float is not yet what triggers the issue..)
                 w.app(exp_lam, {w.type_real(32),
