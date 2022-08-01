@@ -96,15 +96,19 @@ TEST_P(ZipAxiomTest, zip_dyn) {
     Normalizers normalizers;
     auto mem_d = Dialect::load("mem", {});
     mem_d.register_normalizers(normalizers);
-    fe::Parser::import_module(w, "mem", {}, &normalizers);
+    fe::Parser::import_module(w, mem_d.name(), {}, &normalizers);
 
     auto core_d = Dialect::load("core", {});
     core_d.register_normalizers(normalizers);
-    fe::Parser::import_module(w, "core", {}, &normalizers);
+    fe::Parser::import_module(w, core_d.name(), {}, &normalizers);
 
     auto affine_d = Dialect::load("affine", {});
     affine_d.register_normalizers(normalizers);
-    fe::Parser::import_module(w, "affine", {}, &normalizers);
+    fe::Parser::import_module(w, affine_d.name(), {}, &normalizers);
+
+    auto direct_d = Dialect::load("direct", {});
+    direct_d.register_normalizers(normalizers);
+    fe::Parser::import_module(w, direct_d.name(), {}, &normalizers);
 
     auto mem_t  = mem::type_mem(w);
     auto i8_t   = w.type_int_width(8);
@@ -146,32 +150,32 @@ TEST_P(ZipAxiomTest, zip_dyn) {
         auto nat_arr_len        = core::op_bitcast(w.type_nat(), w.op(Conv::u2u, i64_t, arr_len));
         auto a                  = w.pack(nat_arr_len, w.lit_int(i32_t, 0_u32));
         auto b                  = w.pack(nat_arr_len, w.lit_int(i32_t, 0_u32));
-        auto accumulator_type   = w.sigma({a_ptr->type(), b_ptr->type(), a->type(), b->type()});
+        auto accumulator_type   = w.sigma({mem::type_mem(w), a_ptr->type(), b_ptr->type(), a->type(), b->type()});
 
-        auto yield_type = w.cn({mem_t, accumulator_type});
-        auto load_arrs  = w.nom_lam(w.cn({mem_t, i32_t, accumulator_type, yield_type}), w.dbg("load_arrays"));
+        auto yield_type = w.cn(accumulator_type);
+        auto load_arrs  = w.nom_lam(w.cn({i32_t, accumulator_type, yield_type}), w.dbg("load_arrays"));
         {
-            auto [mem, iter, accumulators, yield] =
-                load_arrs->vars<4>({w.dbg("mem"), w.dbg("iter"), w.dbg("accumulators"), w.dbg("yield")});
-            auto [a_ptr, b_ptr, a, b] = accumulators->projs<4>();
+            auto [iter, accumulators, yield] =
+                load_arrs->vars<3>({w.dbg("iter"), w.dbg("accumulators"), w.dbg("yield")});
+            auto [mem, a_ptr, b_ptr, a, b] = accumulators->projs<5>();
 
             auto [a_mem, a_val] = mem::op_load(mem, mem::op_lea(a_ptr, iter))->projs<2>();
             auto [b_mem, b_val] = mem::op_load(a_mem, mem::op_lea(b_ptr, iter))->projs<2>();
             auto index          = w.op(Conv::u2u, w.type_int(a->arity()), iter);
             auto a_inserted     = w.insert(a, index, a_val);
             auto b_inserted     = w.insert(b, index, b_val);
-            load_arrs->app(false, yield, {b_mem, w.tuple({a_ptr, b_ptr, a_inserted, b_inserted})});
+            load_arrs->app(false, yield, w.tuple({b_mem, a_ptr, b_ptr, a_inserted, b_inserted}));
         }
 
-        auto load_arrs_cont = w.nom_lam(w.cn({mem_t, accumulator_type}), w.dbg("load_arrays_cont"));
+        auto load_arrs_cont = w.nom_lam(w.cn(accumulator_type), w.dbg("load_arrays_cont"));
 
         parse_arrays_ret->set_filter(false);
-        parse_arrays_ret->set_body(affine::op_for(len_mem, w.lit_int_width(32, 0), arr_len, w.lit_int_width(32, 1),
-                                                  {a_ptr, b_ptr, a, b}, load_arrs, load_arrs_cont));
+        parse_arrays_ret->set_body(affine::op_for(w.lit_int_width(32, 0), arr_len, w.lit_int_width(32, 1),
+                                                  {len_mem, a_ptr, b_ptr, a, b}, load_arrs, load_arrs_cont));
 
         {
-            auto [mem, ab_tpl]        = load_arrs_cont->vars<2>();
-            auto [a_ptr, b_ptr, a, b] = ab_tpl->projs<4>();
+            auto ab_tpl               = load_arrs_cont->var();
+            auto [mem, a_ptr, b_ptr, a, b] = ab_tpl->projs<5>();
             auto zip                  = w.app(w.app(w.ax<core::zip>(), {w.lit_nat(1), w.tuple({a->arity()})}),
                                               {w.lit_nat(2), w.pack(2, i32_t), w.lit_nat(1), w.tuple({i32_t}), add});
             auto zip_res              = w.app(zip, {a, b});
@@ -183,13 +187,12 @@ TEST_P(ZipAxiomTest, zip_dyn) {
 
             { // compare
                 auto accumulator_type = w.sigma({i32_t, zip_res->type(), out_tup->type()});
-                auto yield_type       = w.cn({mem_t, accumulator_type});
-                auto body_type        = w.cn({mem_t, i32_t, accumulator_type, yield_type});
+                auto yield_type       = w.cn(accumulator_type);
+                auto body_type        = w.cn({i32_t, accumulator_type, yield_type});
 
                 auto body = w.nom_lam(body_type, w.dbg("compare_body"));
                 {
-                    auto [mem, i, acc_tpl, yield] =
-                        body->vars<4>({w.dbg("mem"), w.dbg("i"), w.dbg("acc_tpl"), w.dbg("yield")});
+                    auto [i, acc_tpl, yield] = body->vars<3>({w.dbg("i"), w.dbg("acc_tpl"), w.dbg("yield")});
 
                     auto [errors, zip_res, gt] = acc_tpl->projs<3>({w.dbg("errors"), w.dbg("zip_res"), w.dbg("gt")});
 
@@ -198,18 +201,18 @@ TEST_P(ZipAxiomTest, zip_dyn) {
                         w.select(w.lit_int(errors->type(), 0), w.lit_int(errors->type(), 1),
                                  w.op(ICmp::e, w.extract(zip_res, w.op(Conv::u2u, w.type_int(zip_res->arity()), i)),
                                       w.extract(gt, w.op(Conv::u2u, w.type_int(gt->arity()), i)))));
-                    body->app(false, yield, {mem, w.tuple({add, zip_res, gt})});
+                    body->app(false, yield, w.tuple({add, zip_res, gt}));
                 }
 
-                auto ret_cont = w.nom_lam(w.cn({mem_t, accumulator_type}), w.dbg("ret_cont"));
+                auto ret_cont = w.nom_lam(w.cn(accumulator_type), w.dbg("ret_cont"));
                 {
-                    auto [mem, acc_tpl]        = ret_cont->vars<2>();
+                    auto acc_tpl               = ret_cont->var();
                     auto [errors, zip_res, gt] = acc_tpl->projs<3>();
                     ret_cont->app(false, main->ret_var(), {mem, errors});
                 }
 
                 load_arrs_cont->set_filter(false);
-                load_arrs_cont->set_body(affine::op_for(mem, w.lit_int_width(32, 0), arr_len, w.lit_int_width(32, 1),
+                load_arrs_cont->set_body(affine::op_for(w.lit_int_width(32, 0), arr_len, w.lit_int_width(32, 1),
                                                         {w.lit_int_width(32, 0), zip_res, out_tup}, body, ret_cont));
             }
         }
@@ -228,6 +231,7 @@ TEST_P(ZipAxiomTest, zip_dyn) {
     mem_d.register_passes(builder);
     affine_d.register_passes(builder);
     core_d.register_passes(builder);
+    direct_d.register_passes(builder);
     optimize(w, builder);
 
     w.dump();

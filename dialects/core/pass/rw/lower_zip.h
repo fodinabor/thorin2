@@ -1,5 +1,4 @@
-#ifndef THORIN_DIALECTS_CORE_PASS_RW_LOWER_ZIP_H
-#define THORIN_DIALECTS_CORE_PASS_RW_LOWER_ZIP_H
+#pragma once
 
 #include "thorin/def.h"
 
@@ -8,14 +7,11 @@
 namespace thorin::core {
 
 /// Lowers the zip axiom to use the affine for axiom.
-/// Requires CopyProp to cleanup afterwards.
-/// Should run in a dedicated lowering phase.
+/// Requires LowerFor and DS2CPS to remove newly introduced axioms afterwards.
 class LowerZip : public RWPass<Lam> {
 public:
     LowerZip(PassMan& man)
         : RWPass(man, "lower_zip") {}
-
-    void enter() override { found_zip_.reset(); }
 
     const Def* rewrite(const Def*) override;
 
@@ -23,9 +19,6 @@ public:
 
 private:
     Def2Def rewritten_;
-    std::optional<const Def*> found_zip_;
 };
 
 } // namespace thorin::core
-
-#endif

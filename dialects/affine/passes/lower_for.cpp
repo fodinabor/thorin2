@@ -35,18 +35,25 @@ const Def* LowerFor::rewrite(const Def* def) {
         { // construct for
             auto [iter, end, step, acc] = for_lam->vars<4>();
 
-            // reduce the body to remove the cn parameter
-            auto nom_body = body->as_nom<Lam>();
-            auto new_body = nom_body->stub(w, w.cn(w.sigma()), body->dbg());
-            new_body->set(nom_body->reduce(w.tuple({iter, acc, yield_lam})));
-
             // break
             auto if_else_cn = w.cn(w.sigma());
             auto if_else    = w.nom_lam(if_else_cn, nullptr);
             if_else->app(false, brk, acc);
 
             auto cmp = core::op(core::icmp::ul, iter, end);
-            for_lam->branch(false, cmp, new_body, if_else, w.tuple());
+
+            if (auto nom_body = body->isa_nom<Lam>()) {
+                // reduce the body to remove the cn parameter
+                auto new_body = nom_body->stub(w, w.cn(w.sigma()), body->dbg());
+                new_body->set(nom_body->reduce(w.tuple({iter, acc, yield_lam})));
+                for_lam->branch(false, cmp, new_body, if_else, w.tuple());
+            } else {
+                // continue
+                auto if_then_cn = w.cn();
+                auto if_then    = w.nom_lam(if_then_cn, nullptr);
+                if_then->app(false, body, {iter, acc, yield_lam});
+                for_lam->branch(false, cmp, if_then, if_else, w.tuple());
+            }
         }
 
         DefArray for_args{for_ax->num_args() - 2, [&](size_t i) { return for_ax->arg(i); }};
