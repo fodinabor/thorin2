@@ -176,9 +176,9 @@ World::~World() {
 
 const Def* World::app(const Def* callee, const Def* arg, const Def* dbg) {
     auto pi = callee->type()->isa<Pi>();
-    if (!pi) type_err(dbg->loc(), "called expression '{}' is not of function type", callee);
 
     if (err()) {
+        if (!pi) err()->err(dbg->loc(), "called expression '{}' is not of function type", callee);
         if (!checker_->assignable(pi->dom(), arg, dbg)) err()->ill_typed_app(callee, arg, dbg);
     }
 
@@ -320,6 +320,9 @@ const Def* World::extract(const Def* d, const Def* index, const Def* dbg) {
         sigma && std::all_of(sigma->ops().begin() + 1, sigma->ops().end(),
                              [&](auto op) { return checker_->equiv<false>(sigma->op(0), op, dbg); }))
         return unify<Extract>(2, sigma->op(0), d, index, dbg);
+
+    if (err() && !type->isa<Arr>())
+        err()->err(dbg->loc(), "cannot extract from non-homogeneous sigma with non-literal index");
 
     type = type->as<Arr>()->body();
     return unify<Extract>(2, type, d, index, dbg);

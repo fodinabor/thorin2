@@ -41,7 +41,7 @@ In addition the following keywords are *terminals*:
 | `.pack`     | nominal pack              |
 | `.Sigma`    | nominal Sigma             |
 | `.def`      | nominal definition        |
-| `.external` | marks nominal as external |
+| `.extern`   | marks nominal as external |
 | `.ins`      | insert expression         |
 | `.insert`   | alias for `.ins`          |
 | `.module`   | starts a module           |
@@ -123,20 +123,21 @@ The following tables comprise all production rules:
 
 ### Declarations
 
-| Nonterminal | Right-Hand Side                                                   | New Scope? | Comment                        | Thorin Class  |
-|-------------|-------------------------------------------------------------------|------------|--------------------------------|---------------|
-| d           | `.ax` Ax `:` e<sub>type</sub> `;`                                 |            | axiom                          | thorin::Axiom |
-| d           | `.let` p  `=` e `;`                                               |            | let                            | -             |
-| d           | `.Pi` Sym ( `:` e<sub>type</sub> )? `,` e<sub>dom</sub> n         |            | nominal Pi declaration         | thorin::Pi    |
-| d           | `.lam` Sym `:` e<sub>type</sub> v? n                              |            | nominal lambda declaration     | thorin::Lam   |
-| d           | `.Arr` Sym ( `:` e<sub>type</sub> )? `,` e<sub>shape</sub> v? n   |            | nominal array declaration      | thorin::Arr   |
-| d           | `.pack` Sym ( `:` e<sub>type</sub> )? `,` e<sub>shape</sub> v? n  |            | nominal pack declaration       | thorin::Pack  |
-| d           | `.Sigma` Sym ( `:` e<sub>type</sub> )? `,` L<sub>arity</sub> v? n |            | nominal sigma declaration      | thorin::Sigma |
-| d           | `.def` Sym n                                                      |            | nominal definition             | nominals      |
-| v           | `,` `@` Sym \| `,` `@` `(` Sym `,` ... `,` Sym `)`                |            | nominal variable declaration   | nominals      |
-| n           | `;` \| o                                                          |            | nominal definition             | -             |
-| o           | `=` e `;`                                                         |            | operand of nominal definition  | -             |
-| o           | `=` `{` e `,` ... `,` e  `}` `;`                                  | ✓          | operands of nominal definition | -             |
+| Nonterminal | Right-Hand Side                                                   | New Scope? | Comment                          | Thorin Class  |
+|-------------|-------------------------------------------------------------------|------------|----------------------------------|---------------|
+| d           | `.ax` Ax `:` e<sub>type</sub> `;`                                 |            | axiom                            | thorin::Axiom |
+| d           | `.let` p  `=` e `;`                                               |            | let                              | -             |
+| d           | `.Pi` Sym ( `:` e<sub>type</sub> )? `,` e<sub>dom</sub> n         |            | nominal Pi declaration           | thorin::Pi    |
+| d           | `.lam` Sym p `→` e<sub>codom</sub> n                              |            | nominal lambda declaration       | thorin::Lam   |
+| d           | `.cn` Sym p n                                                     |            | nominal continuation declaration | thorin::Lam   |
+| d           | `.Arr` Sym ( `:` e<sub>type</sub> )? `,` e<sub>shape</sub> v? n   |            | nominal array declaration        | thorin::Arr   |
+| d           | `.pack` Sym ( `:` e<sub>type</sub> )? `,` e<sub>shape</sub> v? n  |            | nominal pack declaration         | thorin::Pack  |
+| d           | `.Sigma` Sym ( `:` e<sub>type</sub> )? `,` L<sub>arity</sub> v? n |            | nominal sigma declaration        | thorin::Sigma |
+| d           | `.def` Sym n                                                      |            | nominal definition               | nominals      |
+| v           | `,` `@` Sym \| `,` `@` `(` Sym `,` ... `,` Sym `)`                |            | nominal variable declaration     | nominals      |
+| n           | `;` \| o                                                          |            | nominal definition               | -             |
+| o           | `=` e `;`                                                         |            | operand of nominal definition    | -             |
+| o           | `=` `{` e `,` ... `,` e  `}` `;`                                  | ✓          | operands of nominal definition   | -             |
 
 ### Patterns
 
@@ -164,7 +165,7 @@ For this reason there is no rule `b -> s (p, ..., p)`.
 | e           | Sym                                                                           |            | identifier                          | -               |
 | e           | Ax                                                                            |            | use of an axiom                     | -               |
 | e           | e e                                                                           |            | application                         | thorin::App     |
-| e           | `λ` Sym `:` e<sub>dom</sub> `→` e<sub>codom</sub>  `.` e<sub>body</sub>       | ✓          | lambda                              | thorin::Lam     |
+| e           | `λ` Sym `:` e<sub>dom</sub> `→` e<sub>codom</sub> `.` e<sub>body</sub>        | ✓          | lambda                              | thorin::Lam     |
 | e           | e<sub>dom</sub> `→` e<sub>codom</sub>                                         |            | function type                       | thorin::Pi      |
 | e           | `Π` b `→` e<sub>codom</sub>                                                   | ✓          | dependent function type             | thorin::Pi      |
 | e           | e `#` Sym                                                                     |            | extract via field "Sym"             | thorin::Extract |
@@ -206,7 +207,7 @@ The grammar tables above also indiciate which constructs open new scopes (and cl
 
 The symbol `_` is special and never binds to an entity.
 For this reason, `_` can be bound over and over again within the same scope (without effect).
-Hence, using the symbol `_` will always result in a [scoping error](@ref thorin::ScopeError).
+Hence, using the symbol `_` will always result in a scoping error.
 
 ### Pis
 

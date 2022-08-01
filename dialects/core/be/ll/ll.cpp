@@ -796,7 +796,6 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
             if (src_size == dst_size) return src;
             op = (src_size < dst_size) ? "zext" : "trunc";
         }
-
         return bb.assign(name, "{} {} {} to {}", op, src_t, src, dst_t);
     } else if (auto bitcast = match<core::bitcast>(def)) {
         auto dst_type_ptr = match<mem::Ptr>(bitcast->type());
@@ -829,7 +828,6 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
             if (src_size == dst_size) return src;
             op = (src_size < dst_size) ? "zext" : "trunc";
         }
-
         return bb.assign(name, "{} {} {} to {}", op, src_t, src, dst_t);
     } else if (auto lea = match<mem::lea>(def)) {
         auto [ptr, idx] = lea->args<2>();

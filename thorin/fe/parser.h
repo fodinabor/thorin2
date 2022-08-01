@@ -71,6 +71,7 @@ private:
     };
 
     Sym parse_sym(std::string_view ctxt = {});
+    Sym anonymous_sym() { return {world().lit_nat('_'), nullptr}; }
     void parse_import();
     const Def* parse_type_ascr(std::string_view ctxt = {});
 
@@ -78,6 +79,7 @@ private:
     ///@{
     const Def* parse_expr(std::string_view ctxt, Tok::Prec = Tok::Prec::Bot);
     const Def* parse_primary_expr(std::string_view ctxt);
+    const Def* parse_infix_expr(Tracker, const Def* lhs, Tok::Prec = Tok::Prec::Bot);
     const Def* parse_extract(Tracker, const Def*, Tok::Prec);
     ///@}
 
@@ -159,17 +161,12 @@ private:
 
     /// @name error messages
     ///@{
-    template<class... Args>
-    [[noreturn]] void err(Loc loc, const char* fmt, Args&&... args) {
-        thorin::err<ParseError>(loc, fmt, std::forward<Args&&>(args)...);
-    }
-
     /// Issue an error message of the form:
     /// "expected \<what\>, got '\<tok>\' while parsing \<ctxt\>"
-    [[noreturn]] void err(std::string_view what, const Tok& tok, std::string_view ctxt);
+    [[noreturn]] void syntax_err(std::string_view what, const Tok& tok, std::string_view ctxt);
 
     /// Same above but uses @p ahead() as @p tok.
-    [[noreturn]] void err(std::string_view what, std::string_view ctxt) { err(what, ahead(), ctxt); }
+    [[noreturn]] void syntax_err(std::string_view what, std::string_view ctxt) { syntax_err(what, ahead(), ctxt); }
     ///@}
 
     Parser(World&,
