@@ -23,11 +23,14 @@ public:
     const Def* rewrite(Lam* nom);
     const Def* rewrite(Lam*& curr_nom, const Def*);
 
+    const Def* replace_proxy_with_var(Lam*, const Def*);
+
 private:
     World& world_;
     Def2Def rewritten_;
     Def2Def val2mem_;
     std::vector<Lam*> noms_;
+    Def2Def proxy_rewritten_;
 };
 
 void arr2mem(World&);

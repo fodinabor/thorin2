@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iterator>
 #include <ranges>
+#include <utility>
 
 #include "thorin/def.h"
 #include "thorin/lam.h"
@@ -17,6 +18,7 @@
 #include "thorin/be/dot/dot.h"
 #include "thorin/pass/rw/lam_spec.h"
 #include "thorin/pass/rw/scalarize.h"
+#include "thorin/util/assert.h"
 #include "thorin/util/dl.h"
 #include "thorin/util/print.h"
 
@@ -28,6 +30,61 @@
 #include "dialects/mem/passes/fp/copy_prop.h"
 
 namespace thorin::mem {
+
+static std::pair<const App*, Array<Lam*>> isa_apped_nom_lam_in_tuple(const Def* def) {
+    if (auto app = def->isa<App>()) {
+        std::vector<Lam*> lams;
+        std::deque<const Def*> wl;
+        wl.push_back(app->callee());
+        while (!wl.empty()) {
+            auto elem = wl.front();
+            wl.pop_front();
+            if (auto nom = elem->isa_nom<Lam>()) {
+                lams.push_back(nom);
+            } else if (auto extract = elem->isa<Extract>()) {
+                if (auto tuple = extract->tuple()->isa<Tuple>()) {
+                    for (auto&& op : tuple->ops()) wl.push_back(op);
+                    // } else if (extract->tuple()->isa<Var>()) {
+                    //     ;
+                } else {
+                    return {nullptr, {}};
+                }
+            } else {
+                return {nullptr, {}};
+            }
+        }
+        return {app, lams};
+    }
+    return {nullptr, {}};
+}
+
+// @pre isa_apped_nom_lam_in_tuple(def) valid
+template<class F, class H>
+static const Def* rewrite_nom_lam_in_tuple(const Def* def, F&& rewrite, H&& rewrite_idx) {
+    auto& w = def->world();
+    if (auto nom = def->isa_nom<Lam>()) { return std::forward<F>(rewrite)(nom); }
+
+    auto extract = def->as<Extract>();
+    auto tuple   = extract->tuple()->as<Tuple>();
+    DefArray new_ops{tuple->ops(), [&](const Def* op) {
+                         return rewrite_nom_lam_in_tuple(op, std::forward<F>(rewrite), std::forward<H>(rewrite_idx));
+                     }};
+    return w.extract(w.tuple(new_ops, tuple->dbg()), rewrite_idx(extract->index()), extract->dbg());
+}
+
+// @pre isa_apped_nom_lam_in_tuple(def) valid
+template<class RewriteCallee, class RewriteArg, class RewriteIdx>
+static const Def* rewrite_apped_nom_lam_in_tuple(const Def* def,
+                                                 RewriteCallee&& rewrite_callee,
+                                                 RewriteArg&& rewrite_arg,
+                                                 RewriteIdx&& rewrite_idx) {
+    auto& w     = def->world();
+    auto app    = def->as<App>();
+    auto callee = rewrite_nom_lam_in_tuple(app->callee(), std::forward<RewriteCallee>(rewrite_callee),
+                                           std::forward<RewriteIdx>(rewrite_idx));
+    auto arg    = std::forward<RewriteArg>(rewrite_arg)(app->arg());
+    return app->rebuild(w, app->type(), {callee, arg}, app->dbg());
+}
 
 void Arr2Mem::run() {
     world_.DLOG("===== Arr2Mem: Start =====");
@@ -46,7 +103,10 @@ void Arr2Mem::run() {
         rewritten_[nom->var()] = nom->var();
         for (size_t i = 0, n = nom->num_ops(); i < n; ++i) static_cast<Def*>(nom)->set(i, rewrite(nom, nom->op(i)));
 
-        // nom->dump(10);
+        // assume externals have mem..
+        val2mem_[nom] = mem::mem_var(nom);
+        nom->set_body(replace_proxy_with_var(nom, nom->body()));
+        nom->dump(50);
     }
     world_.debug_dump();
     world_.DLOG("===== Arr2Mem: Done =====");
@@ -217,8 +277,11 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
     auto mem_var = [&]() -> const Def* {
         if (auto mem_var = mem::mem_var(curr_nom)) return mem_var;
         if (auto it = val2mem_.find(curr_nom); it != val2mem_.end()) return it->second;
-        auto new_nom = world_.nom_lam(world_.cn(mem::type_mem(world_)), curr_nom->dbg());
-        return val2mem_[curr_nom] = new_nom->var();
+        // auto new_nom              = world_.nom_lam(world_.cn(mem::type_mem(world_)), curr_nom->dbg());
+        auto tmp = val2mem_[curr_nom] = val2mem_[rewritten_[curr_nom]] =
+            world_.proxy(mem::type_mem(world_), {rewritten_[curr_nom]}, -1, 0);
+        world_.DLOG("create proxy {} for {}", tmp, curr_nom);
+        return tmp;
     };
 
     if (auto grp = isa_dependent_array(def)) {
@@ -233,6 +296,8 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
         new_mem             = array_fill(world_, new_mem, ptr, rewrite(curr_nom, grp->as<Pack>()->body()),
                                          rewrite(curr_nom, grp->arity()));
 
+        world_.DLOG("dump after arr fill");
+        new_mem->dump(5);
         assert(match<mem::M>(new_mem->type()));
         val2mem_.emplace(grp, new_mem);
         val2mem_.emplace(ptr, new_mem);
@@ -288,7 +353,7 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
             auto nom_mem        = mem_var();
             auto old_mem        = follow_mem(val2mem_, rewrite(curr_nom, nom_mem));
             auto [mem, dst_ptr] = array_copy(world_, old_mem, ptr, rewrite(curr_nom, arr->arity()))->projs<2>();
-            
+
             world_.DLOG("dump after arr copy");
             mem->dump(5);
             auto lea     = mem::op_lea(dst_ptr, rewrite(curr_nom, insert->index()));
@@ -317,16 +382,116 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
 
     auto new_def = def->rebuild(world_, new_type, ops, def->dbg());
 
-    if (def == curr_nom->body()) {
+    if (def == curr_nom->body())
         if (auto it = val2mem_.find(curr_nom); it != val2mem_.end())
-            if (it->second->op(0) != curr_nom) {
-                auto new_nom = it->second->op(0)->as_nom<Lam>();
-                new_nom->set_filter(rewrite(curr_nom, curr_nom->filter()));
-                new_nom->set_body(new_def);
-                return world_.app(new_nom, world_.lit(mem::type_mem(world_), 0));
-            }
+            if (auto proxy = it->second->isa<Proxy>()) world_.DLOG("found proxy: {}", proxy);
+    if (auto apped_nom = isa_apped_nom_lam_in_tuple(new_def); apped_nom.first && new_def->contains_proxy()) {
+        world_.DLOG("found proxy in app: {}", apped_nom.first);
     }
+
     return rewritten_[def] = new_def;
+}
+
+const Def* Arr2Mem::replace_proxy_with_var(Lam* curr_lam, const Def* def) {
+    if (auto proxy = def->isa<Proxy>()) world_.DLOG("rewriting proxy {}", proxy);
+    if (auto it = proxy_rewritten_.find(def); it != proxy_rewritten_.end()) {
+        auto tmp = it->second;
+        if (auto proxy = def->isa<Proxy>()) world_.DLOG("already known proxy {} to {}", proxy, tmp);
+        if (match<mem::M>(def->type())) return follow_mem(val2mem_, it->second);
+        return tmp;
+    }
+    // if (match<mem::M>(def->type())) return follow_mem(val2mem_, def);
+    // maybe exit early if no proxy contained? probably need to update Def::proxy_ in nom op setting, though.
+
+    // todo: do we need to stub noms ..?
+    if (auto nom = def->isa_nom<Lam>()) {
+        proxy_rewritten_[nom] = nom;
+        for (size_t i = 0, n = nom->num_ops(); i < n; ++i) {
+            static_cast<Def*>(nom)->set(i, replace_proxy_with_var(nom, nom->op(i)));
+        }
+        return nom;
+    }
+    assert(!def->isa_nom());
+
+    auto mem_var = [&]() -> const Def* {
+        world_.DLOG("get mem_var for {}", curr_lam);
+        if (auto mem_var = mem::mem_var(curr_lam)) return mem_var;
+        if (auto it = val2mem_.find(curr_lam); it != val2mem_.end()) return it->second;
+        // auto new_nom              = world_.nom_lam(world_.cn(mem::type_mem(world_)), curr_nom->dbg());
+        auto tmp = val2mem_[curr_lam] = val2mem_[proxy_rewritten_[curr_lam]] =
+            world_.proxy(mem::type_mem(world_), {proxy_rewritten_[curr_lam]}, -1, 0);
+        world_.DLOG("create proxy {} for {}", tmp, curr_lam);
+        return tmp;
+    };
+    if (auto apped_nom = isa_apped_nom_lam_in_tuple(def); apped_nom.first) {
+        auto rewrite_arg = [&](const Def* arg) -> const Def* {
+            if (arg->type()->num_projs() > 0 && match<mem::M>(arg->type()->proj(0)))
+                return arg->rebuild(
+                    arg->world(), arg->type(),
+                    DefArray{arg->ops(), [&](const Def* op) { return replace_proxy_with_var(curr_lam, op); }},
+                    arg->dbg());
+
+            DefArray new_args{arg->num_ops() + 1, [&](size_t i) {
+                                  return i == 0 ? replace_proxy_with_var(curr_lam, follow_mem(val2mem_, mem_var()))
+                                                : replace_proxy_with_var(curr_lam, arg->op(i - 1));
+                              }};
+            return arg->world().tuple(new_args, arg->dbg());
+        };
+        // if (def->contains_proxy()) {
+        world_.DLOG("rewriting proxy in app: {}", apped_nom.first);
+        return proxy_rewritten_[def] = rewrite_apped_nom_lam_in_tuple(
+                   def,
+                   [&](Lam* nom) -> const Def* {
+                       if (auto it = proxy_rewritten_.find(nom); it != proxy_rewritten_.end())
+                           if (auto pi = it->second->type()->as<Pi>();
+                               pi->num_doms() > 0 && match<mem::M>(pi->dom(0_s)))
+                               return it->second;
+                       if (auto pi = nom->type()->as<Pi>(); pi->num_doms() > 0 && match<mem::M>(pi->dom(0_s)))
+                           return replace_proxy_with_var(curr_lam, nom);
+
+                       auto pi  = nom->type()->as<Pi>();
+                       auto dom = pi->dom();
+                       DefArray new_dom{dom->num_ops() + 1,
+                                        [&](size_t i) { return i == 0 ? mem::type_mem(world_) : dom->op(i - 1); }};
+                       auto new_nom = nom->stub(world_, world_.pi(new_dom, pi->codom()), nom->dbg());
+
+                       auto proxy = [&]() -> const Def* {
+                           if (auto it = val2mem_.find(nom); it != val2mem_.end() && it->second->isa<Proxy>())
+                               return it->second;
+                           return nullptr;
+                       }();
+
+                       if (proxy) { proxy_rewritten_[proxy] = new_nom->var(0_s); }
+                       for (size_t i = 0; i < nom->num_vars(); ++i) proxy_rewritten_[nom->var(i)] = new_nom->var(i + 1);
+
+                       proxy_rewritten_[new_nom]    = new_nom;
+                       proxy_rewritten_[nom]        = new_nom;
+                       proxy_rewritten_[nom->var()] = new_nom->var();
+                       val2mem_[new_nom]            = new_nom->var(0_s);
+                       val2mem_[nom]                = new_nom->var(0_s);
+                       if (proxy)
+                           val2mem_[new_nom->var(0_s)] = replace_proxy_with_var(curr_lam, follow_mem(val2mem_, proxy));
+                       new_nom->set(replace_proxy_with_var(nom, nom->filter()),
+                                    replace_proxy_with_var(nom, nom->body()));
+                       return new_nom;
+                   },
+                   std::move(rewrite_arg), [&](const Def* def) { return replace_proxy_with_var(curr_lam, def); });
+        // } else {
+        //     auto new_callee = replace_proxy_with_var(curr_lam, apped_nom.first->callee());
+        //     auto arg        = replace_proxy_with_var(curr_lam, apped_nom.first->arg());
+        //     if (new_callee->type()->as<Pi>()->num_doms() ==
+        //         apped_nom.first->callee()->type()->as<Pi>()->num_doms() + 1) {
+        //         arg = rewrite_arg(arg);
+        //     }
+        //     return proxy_rewritten_[def] = def->rebuild(world_, def->type(), {new_callee, arg}, def->dbg());
+        // }
+    }
+
+    DefArray new_ops{def->ops(), [&](const Def* op) { return replace_proxy_with_var(curr_lam, op); }};
+
+    auto tmp = proxy_rewritten_[def] = def->rebuild(world_, def->type(), new_ops, def->dbg());
+    if (auto proxy = def->isa<Proxy>()) world_.DLOG("rewriting proxy {} to {}", proxy, tmp);
+    return tmp;
 }
 
 const Def* var_for_call(const Def* val, const App* call) {

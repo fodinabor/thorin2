@@ -15,6 +15,7 @@ void optimize(World& world, PipelineBuilder& builder) {
 
     auto opt = builder.opt_phase(world);
     opt->run();
+    opt->run();
 
     PassMan::run<LamSpec>(world);
 
