@@ -501,7 +501,7 @@ std::string CodeGen::emit_bb(BB& bb, const Def* def) {
 
             s << "0x" << std::setfill('0') << std::setw(16) << std::right << std::hex << hex;
             return s.str();
-        }
+        } else if (match<mem::M>(lit->type())) return {};
         unreachable();
     } else if (def->isa<Bot>()) {
         return "undef";

@@ -21,14 +21,13 @@ public:
 
     void run();
     const Def* rewrite(Lam* nom);
-    const Def* rewrite(Lam* curr_nom, const Def*);
+    const Def* rewrite(Lam*& curr_nom, const Def*);
 
 private:
     World& world_;
     Def2Def rewritten_;
     Def2Def val2mem_;
     std::vector<Lam*> noms_;
-    Arr2MemAnalysis analysis_;
 };
 
 void arr2mem(World&);

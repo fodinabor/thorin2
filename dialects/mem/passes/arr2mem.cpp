@@ -1,5 +1,7 @@
 #include "dialects/mem/passes/arr2mem.h"
 
+#include <cstddef>
+
 #include <deque>
 #include <fstream>
 #include <iterator>
@@ -14,6 +16,7 @@
 
 #include "thorin/be/dot/dot.h"
 #include "thorin/pass/rw/lam_spec.h"
+#include "thorin/pass/rw/scalarize.h"
 #include "thorin/util/dl.h"
 #include "thorin/util/print.h"
 
@@ -45,6 +48,7 @@ void Arr2Mem::run() {
 
         // nom->dump(10);
     }
+    world_.debug_dump();
     world_.DLOG("===== Arr2Mem: Done =====");
 }
 
@@ -184,12 +188,11 @@ static const Def* array_copy(World& w, const Def* src_mem, const Def* src, const
     return w.app(ds_app, mem);
 }
 
-const Def* Arr2Mem::rewrite(Lam* curr_nom, const Def* def) {
+const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
     if (!def) return nullptr;
     if (auto new_def = rewritten_.find(def); new_def != rewritten_.end()) {
-        return new_def->second;
-        // if (def == new_def->second) return def;
-        // return rewritten_[def] = rewrite(curr_nom, new_def->second);
+        // need new malloc each time..
+        if (!(isa_dependent_array(def) && def->num_uses() > 1)) return new_def->second;
     }
     if (def->no_dep()) return def;
     if (auto nom = def->isa_nom<Lam>()) { return rewrite(nom); }
@@ -211,9 +214,17 @@ const Def* Arr2Mem::rewrite(Lam* curr_nom, const Def* def) {
         return new_nom;
     }
 
+    auto mem_var = [&]() -> const Def* {
+        if (auto mem_var = mem::mem_var(curr_nom)) return mem_var;
+        if (auto it = val2mem_.find(curr_nom); it != val2mem_.end()) return it->second;
+        auto new_nom = world_.nom_lam(world_.cn(mem::type_mem(world_)), curr_nom->dbg());
+        return val2mem_[curr_nom] = new_nom->var();
+    };
+
     if (auto grp = isa_dependent_array(def)) {
         // todo: mem?!
-        auto mem      = follow_mem(val2mem_, rewrite(curr_nom, mem::mem_var(curr_nom)));
+        auto nom_mem  = mem_var();
+        auto mem      = follow_mem(val2mem_, rewrite(curr_nom, nom_mem));
         auto ptr_type = rewrite(curr_nom, grp->type());
         auto arr_type = match<mem::Ptr, false>(ptr_type)->arg(0);
         auto alloc    = mem::op_malloc(arr_type, mem);
@@ -225,8 +236,8 @@ const Def* Arr2Mem::rewrite(Lam* curr_nom, const Def* def) {
         assert(match<mem::M>(new_mem->type()));
         val2mem_.emplace(grp, new_mem);
         val2mem_.emplace(ptr, new_mem);
-        val2mem_[mem]                      = new_mem;
-        rewritten_[mem::mem_var(curr_nom)] = new_mem;
+        val2mem_[mem]       = new_mem;
+        rewritten_[nom_mem] = new_mem;
 
         // alloc->dump(0);
         return rewritten_[def] = ptr;
@@ -237,7 +248,7 @@ const Def* Arr2Mem::rewrite(Lam* curr_nom, const Def* def) {
         auto new_arr = arr->rebuild(world_, rewrite(curr_nom, arr->type()), new_ops, rewrite(curr_nom, arr->dbg()));
 
         auto ptr = mem::type_ptr(new_arr);
-        std::cout << "type: ";
+        // std::cout << "type: ";
         // arr->dump(0);
         // ptr->dump(0);
         rewritten_[ptr]        = ptr;
@@ -256,12 +267,13 @@ const Def* Arr2Mem::rewrite(Lam* curr_nom, const Def* def) {
             auto ptr = rewrite(curr_nom, tuple);
             auto lea = mem::op_lea(ptr, rewrite(curr_nom, extract->index()));
 
-            auto old_mem            = follow_mem(val2mem_, rewrite(curr_nom, mem::mem_var(curr_nom)));
+            auto nom_mem            = mem_var();
+            auto old_mem            = follow_mem(val2mem_, rewrite(curr_nom, nom_mem));
             auto [new_mem, new_val] = mem::op_load(old_mem, lea)->projs<2>();
 
             assert(new_mem);
 
-            update_val2mem(new_mem, arr, ptr, old_mem, rewritten_[mem::mem_var(curr_nom)]);
+            update_val2mem(new_mem, arr, ptr, old_mem, rewritten_[nom_mem]);
             world_.DLOG("load mem {} -> {}, followed: {}", old_mem, new_mem, follow_mem(val2mem_, old_mem));
 
             return rewritten_[def] = new_val;
@@ -273,23 +285,25 @@ const Def* Arr2Mem::rewrite(Lam* curr_nom, const Def* def) {
         auto tuple = insert->tuple();
         if (auto arr = isa_dependent_array_type(tuple->type())) {
             auto ptr            = rewrite(curr_nom, tuple);
-            auto old_mem        = follow_mem(val2mem_, rewrite(curr_nom, mem::mem_var(curr_nom)));
+            auto nom_mem        = mem_var();
+            auto old_mem        = follow_mem(val2mem_, rewrite(curr_nom, nom_mem));
             auto [mem, dst_ptr] = array_copy(world_, old_mem, ptr, rewrite(curr_nom, arr->arity()))->projs<2>();
+            
             world_.DLOG("dump after arr copy");
-            // mem->dump(5);
+            mem->dump(5);
             auto lea     = mem::op_lea(dst_ptr, rewrite(curr_nom, insert->index()));
             auto new_mem = mem::op_store(mem, lea, rewrite(curr_nom, insert->value()));
             assert(new_mem);
 
-            update_val2mem(new_mem, arr, ptr, dst_ptr, old_mem, rewritten_[mem::mem_var(curr_nom)]);
+            update_val2mem(new_mem, arr, ptr, dst_ptr, old_mem, rewritten_[nom_mem]);
 
             return rewritten_[def] = dst_ptr;
         }
     }
 
-    DefArray ops{def->num_ops(), [def, curr_nom, this](size_t i) { return rewrite(curr_nom, def->op(i)); }};
+    DefArray ops{def->num_ops(), [def, &curr_nom, this](size_t i) { return rewrite(curr_nom, def->op(i)); }};
     if (auto app = def->isa<App>()) {
-        if (match<mem::M>(app->arg(0)->type())) {
+        if (app->num_args() > 0 && match<mem::M>(app->arg(0)->type())) {
             // todo: bit cheesy..
             auto args = ops[1];
             DefArray new_args(args->num_ops(), [&](size_t i) {
@@ -301,7 +315,17 @@ const Def* Arr2Mem::rewrite(Lam* curr_nom, const Def* def) {
         }
     }
 
-    auto new_def           = def->rebuild(world_, new_type, ops, def->dbg());
+    auto new_def = def->rebuild(world_, new_type, ops, def->dbg());
+
+    if (def == curr_nom->body()) {
+        if (auto it = val2mem_.find(curr_nom); it != val2mem_.end())
+            if (it->second->op(0) != curr_nom) {
+                auto new_nom = it->second->op(0)->as_nom<Lam>();
+                new_nom->set_filter(rewrite(curr_nom, curr_nom->filter()));
+                new_nom->set_body(new_def);
+                return world_.app(new_nom, world_.lit(mem::type_mem(world_), 0));
+            }
+    }
     return rewritten_[def] = new_def;
 }
 
@@ -542,7 +566,8 @@ void PrintAna::analyze() {
 //     coalesced_intos_.clear();
 
 //     auto noms = world_.externals() |
-//                 std::ranges::views::transform([](auto external) { return external.second->template as_nom<Lam>(); });
+//                 std::ranges::views::transform([](auto external) { return external.second->template as_nom<Lam>();
+//                 });
 //     for (auto nom : noms) {
 //         for (auto& op : nom->ops()) fill(op);
 //     }
@@ -606,6 +631,7 @@ void arr2mem(World& w) {
     auto add_ds2cps =
         reinterpret_cast<decltype(&thorin_add_direct_ds2cps)>(dl::get(direct.handle(), "thorin_add_direct_ds2cps"));
     add_ds2cps(man);
+    man.add<Scalerize>(nullptr);
     man.run();
     PassMan::run<LamSpec>(w);
 }

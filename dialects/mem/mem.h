@@ -106,6 +106,7 @@ inline const Def* op_mslot(const Def* type, const Def* mem, const Def* id, const
 }
 
 inline const Def* mem_var(Lam* lam, const Def* dbg = nullptr) {
+    if (lam->num_vars() < 1) return nullptr;
     return match<mem::M>(lam->var(0_s)->type()) ? lam->var(0, dbg) : nullptr;
 }
 } // namespace thorin::mem
