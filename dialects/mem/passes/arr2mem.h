@@ -3,6 +3,7 @@
 
 #include "thorin/config.h"
 #include "thorin/def.h"
+#include "thorin/analyses/schedule.h"
 
 namespace thorin {
 class Lam;
@@ -29,6 +30,7 @@ private:
     World& world_;
     Def2Def rewritten_;
     Def2Def val2mem_;
+    Scheduler scheduler_;
     std::vector<Lam*> noms_;
     Def2Def proxy_rewritten_;
 };
