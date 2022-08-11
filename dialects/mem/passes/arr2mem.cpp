@@ -313,6 +313,50 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
         return rewritten_[def] = ptr;
     }
 
+    if (auto ptr = match<mem::Ptr>(def)) {
+        if (auto arr = isa_dependent_array_type(ptr->arg(0))) {
+            DefArray new_arr_ops{arr->num_ops(), [&](size_t i) { return rewrite(curr_nom, arr->op(i)); }};
+            auto new_arr =
+                arr->rebuild(world_, rewrite(curr_nom, arr->type()), new_arr_ops, rewrite(curr_nom, arr->dbg()));
+            return rewritten_[ptr] = ptr->rebuild(
+                       world_, rewrite(curr_nom, ptr->type()),
+                       {ptr->axiom(), world_.tuple({new_arr, rewrite(curr_nom, ptr->arg(1))})}, ptr->dbg());
+        }
+    }
+
+    if (auto lea = match<mem::lea>(def)) {
+        auto typed_lea = lea->callee()->as<App>();
+
+        if (auto arr = isa_dependent_array_type(typed_lea->arg(1))) {
+            auto new_array_type = rewrite(curr_nom, arr->type());
+
+            DefArray new_arr_ops{arr->num_ops(), [&](size_t i) { return rewrite(curr_nom, arr->op(i)); }};
+            auto new_arr       = arr->rebuild(world_, new_array_type, new_arr_ops, rewrite(curr_nom, arr->dbg()));
+            auto new_typed_lea = rewritten_[typed_lea] = typed_lea->rebuild(
+                world_, rewrite(curr_nom, typed_lea->type()),
+                {lea->axiom(),
+                 world_.tuple({rewrite(curr_nom, typed_lea->arg(0)), new_arr, rewrite(curr_nom, typed_lea->arg(2))})},
+                typed_lea->dbg());
+
+            auto new_arg           = rewrite(curr_nom, lea->arg());
+            return rewritten_[lea] = world_.app(new_typed_lea, new_arg, lea->dbg());
+        }
+    }
+
+    // todo: malloc / (m)slot?
+    if (auto alloc = match<mem::alloc>(def)) {
+        auto typed_alloc = alloc->callee()->as<App>();
+        if (auto arr = isa_dependent_array_type(typed_alloc->arg(0))) {
+            DefArray new_arr_ops{arr->num_ops(), [&](size_t i) { return rewrite(curr_nom, arr->op(i)); }};
+            auto new_arr =
+                arr->rebuild(world_, rewrite(curr_nom, arr->type()), new_arr_ops, rewrite(curr_nom, arr->dbg()));
+            rewritten_[typed_alloc] = typed_alloc->rebuild(
+                world_, rewrite(curr_nom, typed_alloc->type()),
+                {typed_alloc->axiom(), world_.tuple({new_arr, rewrite(curr_nom, typed_alloc->arg(1))})},
+                typed_alloc->dbg());
+        }
+    }
+
     if (auto arr = isa_dependent_array_type(def)) {
         DefArray new_ops{arr->num_ops(), [&](size_t i) { return rewrite(curr_nom, arr->op(i)); }};
         auto new_arr = arr->rebuild(world_, rewrite(curr_nom, arr->type()), new_ops, rewrite(curr_nom, arr->dbg()));
@@ -479,12 +523,12 @@ const Def* Arr2Mem::replace_proxy_with_var(Lam* curr_lam, const Def* def) {
 
                        if (proxy) { proxy_rewritten_[proxy] = new_nom->var(0_s); }
                        for (size_t i = 0; i < nom->num_vars(); ++i) proxy_rewritten_[nom->var(i)] = new_nom->var(i + 1);
+                       if (nom->num_vars() > 1) proxy_rewritten_[nom->var()] = new_nom->var();
 
-                       proxy_rewritten_[new_nom]    = new_nom;
-                       proxy_rewritten_[nom]        = new_nom;
-                       proxy_rewritten_[nom->var()] = new_nom->var();
-                       val2mem_[new_nom]            = new_nom->var(0_s);
-                       val2mem_[nom]                = new_nom->var(0_s);
+                       proxy_rewritten_[new_nom] = new_nom;
+                       proxy_rewritten_[nom]     = new_nom;
+                       val2mem_[new_nom]         = new_nom->var(0_s);
+                       val2mem_[nom]             = new_nom->var(0_s);
                        if (proxy)
                            val2mem_[new_nom->var(0_s)] = replace_proxy_with_var(place, follow_mem(val2mem_, proxy));
                        new_nom->set(replace_proxy_with_var(place, nom->filter()),

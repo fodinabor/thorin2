@@ -15,6 +15,7 @@ void optimize(World& world, PipelineBuilder& builder) {
 
     auto opt = builder.opt_phase(world);
     opt->run();
+    // need DS2CPS (and I think CopyProp once again.. could do better..)
     opt->run();
 
     PassMan::run<LamSpec>(world);
