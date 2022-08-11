@@ -99,14 +99,6 @@ void Arr2Mem::run() {
         auto nom = noms_.back();
         noms_.pop_back();
 
-        Scope scope{nom};
-        Scheduler sched{scope};
-        std::swap(sched, scheduler_);
-
-        rewritten_[nom]        = nom;
-        rewritten_[nom->var()] = nom->var();
-        for (size_t i = 0, n = nom->num_ops(); i < n; ++i) static_cast<Def*>(nom)->set(i, rewrite(nom, nom->op(i)));
-
         // assume externals have mem..
         Scope sec_scope{nom};
         Scheduler sec_sched{sec_scope};
@@ -114,7 +106,16 @@ void Arr2Mem::run() {
 
         val2mem_[nom] = mem::mem_var(nom);
         nom->set_body(replace_proxy_with_var(nom, nom->body()));
-        nom->dump(50);
+        // nom->dump(50);
+
+        Scope scope{nom};
+        Scheduler sched{scope};
+        std::swap(sched, scheduler_);
+
+        rewritten_[nom]        = nom;
+        rewritten_[nom->var()] = nom->var();
+        for (size_t i = 0, n = nom->num_ops(); i < n; ++i) static_cast<Def*>(nom)->set(i, rewrite(nom, nom->op(i)));
+        // nom->dump(50);
     }
     world_.debug_dump();
     world_.DLOG("===== Arr2Mem: Done =====");
@@ -307,7 +308,7 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
                                          rewrite(curr_nom, grp->arity()));
 
         world_.DLOG("dump after arr fill");
-        new_mem->dump(5);
+        // new_mem->dump(5);
         assert(match<mem::M>(new_mem->type()));
         val2mem_.emplace(grp, new_mem);
         val2mem_.emplace(ptr, new_mem);
@@ -365,7 +366,7 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
             auto [mem, dst_ptr] = array_copy(world_, old_mem, ptr, rewrite(curr_nom, arr->arity()))->projs<2>();
 
             world_.DLOG("dump after arr copy");
-            mem->dump(5);
+            // mem->dump(5);
             auto lea     = mem::op_lea(dst_ptr, rewrite(curr_nom, insert->index()));
             auto new_mem = mem::op_store(mem, lea, rewrite(curr_nom, insert->value()));
             assert(new_mem);
@@ -819,7 +820,7 @@ void arr2mem(World& w) {
     auto add_ds2cps =
         reinterpret_cast<decltype(&thorin_add_direct_ds2cps)>(dl::get(direct.handle(), "thorin_add_direct_ds2cps"));
     add_ds2cps(man);
-    man.add<Scalerize>(nullptr);
+    // man.add<Scalerize>(nullptr);
     man.run();
     PassMan::run<LamSpec>(w);
 }

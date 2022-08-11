@@ -140,12 +140,15 @@ const Def* DS2CPS::rewrite_inner(const Def* def) {
                 lam_cps = rewrite_(callee);
             }
 
+            // pre-order!
+            auto new_arg = rewrite_(app->arg());
+
             // continuation of call site to receive result
             auto fun_cont = world.nom_lam(world.cn(ret_ty), world.dbg(curr_lam_->name() + "_cont"));
             fun_cont->set_filter(curr_lam_->filter());
 
             // f a -> f_cps(a,cont)
-            auto cps_call = world.app(lam_cps, {rewrite(app->arg()), fun_cont}, world.dbg("cps_call"));
+            auto cps_call = world.app(lam_cps, {new_arg, fun_cont}, world.dbg("cps_call"));
             if (curr_lam_->body()) rewritten_bodies_[curr_lam_->body()] = cps_call;
             world.DLOG("  overwrite body {} of {} : {} with {} : {}\n", curr_lam_->body(), curr_lam_, curr_lam_->type(),
                        cps_call->unique_name(), cps_call->type());
