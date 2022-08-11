@@ -1,0 +1,33 @@
+// RUN: rm -f %t.ll ; \
+// RUN: %thorin -d affine -d direct %s --output-thorin - --output-ll %t.ll | FileCheck %s
+// RUN: clang %t.ll -o %t -Wno-override-module
+
+.import affine;
+.import mem;
+.import core;
+
+.let i32 = %Int 4294967296;
+
+.cn .extern main [mem : %mem.M, argc : i32, argv : %mem.Ptr (%mem.Ptr (i32, 0:.Nat), 0:.Nat), return : .Cn [%mem.M, i32]] = {
+    // .let arr_size = 16;
+    .let arr_size = %core.bitcast (.Nat, i32) argc;
+    .let arr = <arr_size ; 0:(i32)>;
+    
+    .cn for_exit [acc : [i32, i32, <<arr_size; i32>>, <<arr_size; i32>>]] = {
+        .let idx = %core.conv.u2u (arr_size, 4294967296) (%core.wrap.sub (0, 4294967296) (argc, 1:i32));
+        .let sum = %core.zip (1, arr_size) (2, (i32, i32), 1, (i32), %core.wrap.add (0, 4294967296)) (acc#2:(%Int 4), acc#3:(%Int 4));
+        return (mem, sum#idx)
+    };
+    .cn for_body [i : i32, acc : [i32, i32, <<arr_size; i32>>, <<arr_size; i32>>], continue : .Cn [[i32, i32, <<arr_size; i32>>, <<arr_size; i32>>]]] = {
+        .let a : i32 = %Wrap_add (0:.Nat, 4294967296:.Nat) (i, acc#0:(%Int 4));
+        .let b : i32 = %Wrap_sub (0:.Nat, 4294967296:.Nat) (i, acc#1:(%Int 4));
+        .let arrA = .ins (acc#2:(%Int 4), %core.conv.u2u (arr_size, 4294967296) i, a);
+        .let arrB = .ins (acc#3:(%Int 4), %core.conv.u2u (arr_size, 4294967296) i, b);
+        continue (a, b, arrA, arrB)
+    };
+    %affine.For (4294967296, 4, (i32, i32, <<arr_size; i32>>, <<arr_size; i32>>)) (0:(i32), argc, 1:(i32), (0:(i32), 0:(i32), arr, arr), for_body, for_exit)
+};
+
+
+// CHECK-NOT: %core.zip
+// CHECK-NOT: %affine.For

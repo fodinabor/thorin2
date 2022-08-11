@@ -1,0 +1,36 @@
+// XFAIL: *
+// RUN: rm -f %t.ll ; \
+// RUN: %thorin -d affine --output-thorin - %s --output-ll %t.ll | FileCheck %s
+// RUN: clang %t.ll -o %t -Wno-override-module
+// RUN: %t ; test $? -eq 0
+// RUN: %t 1 2 3 ; test $? -eq 6
+
+.import affine;
+.import core;
+.import mem;
+
+
+.cn .extern main [mem : %mem.M, argc : %Int 4294967296, argv : %mem.Ptr (%mem.Ptr (%Int 4294967296, 0:.Nat), 0:.Nat), return : .Cn [%mem.M, %Int 4294967296]] = {
+    .let arr_size = 512;
+    .let arr = <arr_size ; 0:(%Int 4294967296)>;
+    .let arr2 = .ins (arr, 1:(%Int arr_size), 7:(%Int 4294967296));
+
+    .cn for_exit [mem : %mem.M , acc : [%Int 4294967296, %Int 4294967296, <<arr_size; %Int 4294967296>>]] = {
+        return (mem, acc#2:(%Int 3)#0:(%Int arr_size))
+    };
+
+    .cn for_body [mem : %mem.M , i : %Int 4294967296, acc : [%Int 4294967296, %Int 4294967296, <<arr_size; %Int 4294967296>>], continue : .Cn [%mem.M , [%Int 4294967296, %Int 4294967296, <<arr_size; %Int 4294967296>>]]] = {
+        .let a : %Int 4294967296 = %Wrap_add (0:.Nat, 4294967296:.Nat) (i, acc#0:(%Int 3));
+        .let b : %Int 4294967296 = %Wrap_sub (0:.Nat, 4294967296:.Nat) (i, acc#1:(%Int 3));
+        .let arr2 = .ins (acc#2:(%Int 3), %core.conv.u2u (arr_size, 4294967296) i, a);
+        continue (mem, (a, b, arr2))
+    };
+
+    .cn for2 [mem : %mem.M , acc : [%Int 4294967296, %Int 4294967296, <<arr_size; %Int 4294967296>>]] = {
+        %affine.For (4294967296, 3, (%Int 4294967296, %Int 4294967296, <<arr_size; %Int 4294967296>>)) (mem, 0:(%Int 4294967296), argc, 1:(%Int 4294967296), (acc#0:(%Int 3), acc#1:(%Int 3), arr), for_body, for_exit)
+    };
+
+    %affine.For (4294967296, 3, (%Int 4294967296, %Int 4294967296, <<arr_size; %Int 4294967296>>)) (mem, 0:(%Int 4294967296), argc, 1:(%Int 4294967296), (0:(%Int 4294967296), 0:(%Int 4294967296), arr2), for_body, for_exit)
+};
+
+// CHECK-NOT: affine.for

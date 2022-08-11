@@ -44,8 +44,6 @@ static std::pair<const App*, Array<Lam*>> isa_apped_nom_lam_in_tuple(const Def* 
             } else if (auto extract = elem->isa<Extract>()) {
                 if (auto tuple = extract->tuple()->isa<Tuple>()) {
                     for (auto&& op : tuple->ops()) wl.push_back(op);
-                    // } else if (extract->tuple()->isa<Var>()) {
-                    //     ;
                 } else {
                     return {nullptr, {}};
                 }
@@ -287,12 +285,8 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
         auto place = static_cast<Lam*>(scheduler_.smart(def));
         if (auto mem_var = mem::mem_var(place)) return mem_var;
         if (auto it = val2mem_.find(place); it != val2mem_.end()) return it->second;
-        // auto new_nom              = world_.nom_lam(world_.cn(mem::type_mem(world_)), curr_nom->dbg());
-        auto tmp = val2mem_[place] = val2mem_[rewritten_[place]] =
-            world_.proxy(mem::type_mem(world_),
-                         {rewritten_[place], static_cast<Lam*>(const_cast<Def*>(rewritten_[place]))->var()}, -1, 0);
-        world_.DLOG("create proxy {} for {}", tmp, place);
-        return tmp;
+        unreachable();
+        return nullptr;
     };
 
     if (auto grp = isa_dependent_array(def)) {
@@ -386,19 +380,11 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
                 if (i == 0) return follow_mem(val2mem_, args->op(0));
                 return args->op(i);
             });
-            // args->refine(0, follow_mem(val2mem_, args->op(0)));
             ops[1] = args->rebuild(world_, args->type(), new_args, args->dbg());
         }
     }
 
     auto new_def = def->rebuild(world_, new_type, ops, def->dbg());
-
-    // if (def == curr_nom->body())
-    //     if (auto it = val2mem_.find(curr_nom); it != val2mem_.end())
-    //         if (auto proxy = it->second->isa<Proxy>()) world_.DLOG("found proxy: {}", proxy);
-    // if (auto apped_nom = isa_apped_nom_lam_in_tuple(new_def); apped_nom.first && new_def->contains_proxy()) {
-    //     world_.DLOG("found proxy in app: {}", apped_nom.first);
-    // }
 
     return rewritten_[def] = new_def;
 }
@@ -409,17 +395,13 @@ const Def* Arr2Mem::replace_proxy_with_var(Lam* curr_lam, const Def* def) {
         world_.DLOG("get mem_var for {}", nom);
         if (auto mem_var = mem::mem_var(nom)) return mem_var;
         if (auto it = val2mem_.find(nom); it != val2mem_.end()) return it->second;
-        // auto new_nom              = world_.nom_lam(world_.cn(mem::type_mem(world_)), curr_nom->dbg());
-        // auto tmp = val2mem_[curr_lam] = val2mem_[proxy_rewritten_[curr_lam]] =
-        //     world_.proxy(mem::type_mem(world_), {proxy_rewritten_[curr_lam]}, -1, 0);
-        // world_.DLOG("create proxy {} for {}", tmp, curr_lam);
-        // return tmp;
         unreachable();
         return nullptr;
     };
 
     world_.DLOG("rewriting {} in {}", def, place);
 
+    if (auto nom_lam = def->isa_nom<Lam>(); nom_lam && nom_lam->is_unset()) return def;
     if (auto proxy = def->isa<Proxy>()) world_.DLOG("rewriting proxy {}", proxy);
     if (auto it = proxy_rewritten_.find(def); it != proxy_rewritten_.end()) {
         auto tmp = it->second;
@@ -430,10 +412,7 @@ const Def* Arr2Mem::replace_proxy_with_var(Lam* curr_lam, const Def* def) {
         }
         return tmp;
     }
-    if (match<mem::M>(def->type())) {
-        world_.DLOG("new mem {} in {}", def, curr_lam);
-        // return follow_mem(val2mem_, mem_var());
-    }
+    if (match<mem::M>(def->type())) { world_.DLOG("new mem {} in {}", def, curr_lam); }
     //  maybe exit early if no proxy contained? probably need to update Def::proxy_ in nom op setting, though.
 
     // todo: do we need to stub noms ..?
@@ -453,12 +432,18 @@ const Def* Arr2Mem::replace_proxy_with_var(Lam* curr_lam, const Def* def) {
                     arg->world(), arg->type(),
                     DefArray{arg->ops(), [&](const Def* op) { return replace_proxy_with_var(place, op); }}, arg->dbg());
 
-            DefArray new_args{arg->num_ops() + 1};
-            for (int i = arg->num_ops(); i >= 0; i--) {
-                new_args[i] = i == 0 ? replace_proxy_with_var(place, follow_mem(val2mem_, mem_var(place)))
-                                     : replace_proxy_with_var(place, arg->op(i - 1));
+            if (arg->isa<Tuple>() || arg->isa<Arr>() || arg->isa<Pack>()) {
+                DefArray new_args{arg->num_projs() + 1};
+                for (int i = arg->num_projs(); i >= 0; i--) {
+                    new_args[i] = i == 0 ? replace_proxy_with_var(place, follow_mem(val2mem_, mem_var(place)))
+                                         : replace_proxy_with_var(place, arg->proj(i - 1));
+                }
+                return arg->world().tuple(new_args, arg->dbg());
             }
-            return arg->world().tuple(new_args, arg->dbg());
+
+            return arg->world().tuple({replace_proxy_with_var(place, follow_mem(val2mem_, mem_var(place))),
+                                       replace_proxy_with_var(place, arg)},
+                                      arg->dbg());
         };
 
         // if (def->contains_proxy()) {
@@ -473,10 +458,17 @@ const Def* Arr2Mem::replace_proxy_with_var(Lam* curr_lam, const Def* def) {
                        if (auto pi = nom->type()->as<Pi>(); pi->num_doms() > 0 && match<mem::M>(pi->dom(0_s)))
                            return replace_proxy_with_var(place, nom);
 
-                       auto pi  = nom->type()->as<Pi>();
-                       auto dom = pi->dom();
-                       DefArray new_dom{dom->num_ops() + 1,
-                                        [&](size_t i) { return i == 0 ? mem::type_mem(world_) : dom->op(i - 1); }};
+                       auto pi            = nom->type()->as<Pi>();
+                       auto dom           = pi->dom();
+                       const Def* new_dom = nullptr;
+                       if (dom->isa<Sigma>() || dom->isa<Arr>() || dom->isa<Pack>()) { // what about packs / arrays..?
+                           new_dom = world_.sigma(DefArray{dom->num_projs() + 1, [&](size_t i) {
+                                                               return i == 0 ? mem::type_mem(world_) : dom->proj(i - 1);
+                                                           }});
+                       } else {
+                           new_dom = world_.sigma({mem::type_mem(world_), dom});
+                       }
+
                        auto new_nom = nom->stub(world_, world_.pi(new_dom, pi->codom()), nom->dbg());
 
                        auto proxy = [&]() -> const Def* {
