@@ -104,6 +104,9 @@ const Def* DS2CPS::rewrite_inner(const Def* def) {
         auto callee = app->callee();
         auto args   = app->args();
 
+        // pre-order!
+        auto new_arg = rewrite_(app->arg());
+
         // manual unfolding instead of match<cps2ds>(callee)
         // due to currying
         Lam* conv_cps       = nullptr;
@@ -140,9 +143,6 @@ const Def* DS2CPS::rewrite_inner(const Def* def) {
                 lam_cps = rewrite_(callee);
             }
 
-            // pre-order!
-            auto new_arg = rewrite_(app->arg());
-
             // continuation of call site to receive result
             auto fun_cont = world.nom_lam(world.cn(ret_ty), world.dbg(curr_lam_->name() + "_cont"));
             fun_cont->set_filter(curr_lam_->filter());
@@ -150,7 +150,7 @@ const Def* DS2CPS::rewrite_inner(const Def* def) {
             // f a -> f_cps(a,cont)
             auto cps_call = world.app(lam_cps, {new_arg, fun_cont}, world.dbg("cps_call"));
             if (curr_lam_->body()) rewritten_bodies_[curr_lam_->body()] = cps_call;
-            world.DLOG("  overwrite body {} of {} : {} with {} : {}\n", curr_lam_->body(), curr_lam_, curr_lam_->type(),
+            world.DLOG("  overwrite body {} of {} : {} with {} : {}", curr_lam_->body(), curr_lam_, curr_lam_->type(),
                        cps_call->unique_name(), cps_call->type());
 
             curr_lam_->set_body(cps_call);
