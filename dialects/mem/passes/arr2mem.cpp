@@ -602,12 +602,13 @@ public:
 
 private:
     ArrGraph::ArrNode* analyze(const Def*);
-    void print(std::ostream& os, const ArrGraph::ArrNode* node) const;
+    void print(std::ostream& os,
+               const ArrGraph::ArrNode* node,
+               absl::flat_hash_set<const ArrGraph::ArrNode*>& printedNodes) const;
 
     World& world_;
     DefMap<ArrGraph::ArrNode*> cache_;
     ArrGraph graph_;
-    mutable absl::flat_hash_set<const ArrGraph::ArrNode*> printedNodes_;
 };
 
 ArrGraph::ArrNode* ArrAna::analyze(const Def* def) {
@@ -627,6 +628,7 @@ ArrGraph::ArrNode* ArrAna::analyze(const Def* def) {
         node = graph_.insert(def);
     } else if (auto [app, lams] = isa_apped_nom_lam_in_tuple(def);
                app && std::ranges::any_of(lams[0]->dom()->ops(), isa_dependent_array_type)) {
+        // add phis
         for (size_t i = 0, e = app->num_args(); i < e; ++i)
             if (auto node = analyze(app->arg(i)))
                 for (auto lam : lams)
@@ -652,20 +654,22 @@ void ArrAna::analyze() {
 }
 
 void ArrAna::print(std::ostream& os) const {
-    printedNodes_.clear();
+    absl::flat_hash_set<const ArrGraph::ArrNode*> printedNodes;
 
     os << "digraph Arr {\n";
-    for (auto& node : graph_) { print(os, node.get()); }
+    for (auto& node : graph_) { print(os, node.get(), printedNodes); }
     os << "}" << std::endl;
 }
 
-void ArrAna::print(std::ostream& os, const ArrGraph::ArrNode* node) const {
-    if (!printedNodes_.emplace(node).second) return;
+void ArrAna::print(std::ostream& os,
+                   const ArrGraph::ArrNode* node,
+                   absl::flat_hash_set<const ArrGraph::ArrNode*>& printedNodes) const {
+    if (!printedNodes.emplace(node).second) return;
 
     os << "\"" << node->name() << "\" [label=\"";
     std::stringstream ss;
     node->def()->stream(ss, 0);
-    { // skip 
+    { // skip new-line
         std::string str{ss.str()};
         os << std::string{++str.cbegin(), str.cend()};
     }
@@ -674,7 +678,7 @@ void ArrAna::print(std::ostream& os, const ArrGraph::ArrNode* node) const {
     else
         os << "\", shape=rect];\n";
     for (auto* child : *node) {
-        print(os, child);
+        print(os, child, printedNodes);
         os << "\"" << node->name() << "\" -> \"" << child->name() << "\";\n";
     }
 }
