@@ -24,7 +24,7 @@ public:
     const Def* rewrite(Lam* nom);
     const Def* rewrite(Lam*& curr_nom, const Def*);
 
-    const Def* replace_proxy_with_var(Lam*, const Def*);
+    const Def* add_mem_to_lams(Lam*, const Def*);
 
 private:
     World& world_;
@@ -32,7 +32,7 @@ private:
     Def2Def val2mem_;
     Scheduler scheduler_;
     std::vector<Lam*> noms_;
-    Def2Def proxy_rewritten_;
+    Def2Def mem_rewritten_;
 };
 
 void arr2mem(World&);
