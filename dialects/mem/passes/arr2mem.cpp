@@ -592,6 +592,85 @@ private:
     std::vector<std::unique_ptr<ArrNode>> nodes_;
 };
 
+struct UnionFind {
+    void insert(const Def* def, const Def* def_onion) {
+        auto insert_to_onion = [this, def](DefSet* onion) {
+            if (auto def_union_it = def2union_.find(def); def_union_it != def2union_.end()) {
+                for (auto d : *def_union_it->second) {
+                    def2union_.at(d) = onion;
+                    onion->insert(d);
+                }
+                // todo: in theory we could deallocate the old DefSet now.
+                // would remove the need for UnionIterator::next_valid
+            } else {
+                def2union_.emplace(def, onion);
+                onion->insert(def);
+            }
+        };
+
+        if (auto it = def2union_.find(def_onion); it != def2union_.end()) {
+            insert_to_onion(it->second);
+        } else {
+            auto new_union = unions_.emplace_back(new DefSet()).get();
+            insert_to_onion(new_union);
+            if (def_onion != def) {
+                new_union->insert(def_onion);
+                def2union_.emplace(def_onion, new_union);
+            }
+        }
+    }
+
+    const DefSet* find(const Def* def) const {
+        if (auto it = def2union_.find(def); it != def2union_.end()) return it->second;
+        return nullptr;
+    }
+
+    struct UnionIterator {
+        using value_type = const DefSet*;
+        using reference  = const DefSet*;
+
+        UnionIterator()
+            : it_()
+            , uf_(nullptr) {}
+
+        explicit UnionIterator(const UnionFind& find)
+            : it_(find.unions_.begin())
+            , uf_(&find) {
+            next_valid();
+        }
+
+        UnionIterator operator++() {
+            if (uf_) {
+                it_++;
+                next_valid();
+            }
+            return *this;
+        }
+
+        reference operator*() { return it_->get(); }
+
+        friend bool operator!=(const UnionIterator& lhs, const UnionIterator& rhs) { return lhs.it_ != rhs.it_; }
+
+    private:
+        using wrapped_iterator = std::vector<std::unique_ptr<DefSet>>::const_iterator;
+
+        void next_valid() {
+            while (it_ != uf_->unions_.end() && uf_->find(*it_->get()->begin()) != it_->get()) it_++;
+            if (it_ == uf_->unions_.end()) it_ = {};
+        }
+
+        std::vector<std::unique_ptr<DefSet>>::const_iterator it_;
+        const UnionFind* uf_;
+    };
+
+    UnionIterator begin() const { return UnionIterator{*this}; }
+    UnionIterator end() const { return {}; }
+
+private:
+    DefMap<DefSet*> def2union_;
+    std::vector<std::unique_ptr<DefSet>> unions_;
+};
+
 class ArrAna {
 public:
     ArrAna(World& world)
@@ -600,16 +679,53 @@ public:
     void analyze();
     void print(std::ostream& os) const;
 
+    const DefSet* phi_web(const Def* from) const;
+
 private:
+    bool analyze_union(const Def*);
     ArrGraph::ArrNode* analyze(const Def*);
     void print(std::ostream& os,
                const ArrGraph::ArrNode* node,
                absl::flat_hash_set<const ArrGraph::ArrNode*>& printedNodes) const;
+    void print_union(std::ostream& os, const DefSet& onion) const;
+
+    void print(std::ostream& os, const Def* d) const;
+    void print(std::ostream& os, const Def* d0, const Def* d1) const;
 
     World& world_;
     DefMap<ArrGraph::ArrNode*> cache_;
     ArrGraph graph_;
+    DefSet visited_;
+    UnionFind union_find_;
 };
+
+bool ArrAna::analyze_union(const Def* def) {
+    if (def == nullptr) return false;
+    if (visited_.contains(def)) return union_find_.find(def);
+
+    if (auto ex = def->isa<Extract>(); ex && !ex->tuple()->arity()->isa<Lit>()) {
+        union_find_.insert(def, ex->tuple());
+    } else if (auto in = def->isa<Insert>(); in && !in->tuple()->arity()->isa<Lit>()) {
+        union_find_.insert(def, in->tuple());
+    } else if (isa_dependent_array(def)) {
+        union_find_.insert(def, def);
+    } else if (isa_dependent_array_type(def->type())) {
+        union_find_.insert(def, def);
+    } else if (auto [app, lams] = isa_apped_nom_lam_in_tuple(def);
+               app && std::ranges::any_of(lams[0]->dom()->ops(), isa_dependent_array_type)) {
+        // add phis
+        for (size_t i = 0, e = app->num_args(); i < e; ++i)
+            if (analyze_union(app->arg(i)))
+                for (auto lam : lams)
+                    if (analyze_union(lam->var(i))) union_find_.insert(app->arg(i), lam->var(i));
+    }
+    visited_.insert(def);
+
+    for (const auto* op : def->ops())
+        if (analyze_union(op) && union_find_.find(def)) union_find_.insert(op, def);
+
+    return union_find_.find(def);
+}
 
 ArrGraph::ArrNode* ArrAna::analyze(const Def* def) {
     if (def == nullptr) return nullptr;
@@ -649,15 +765,19 @@ void ArrAna::analyze() {
     auto noms = world_.externals() |
                 std::ranges::views::transform([](auto external) { return external.second->template as_nom<Lam>(); });
     for (auto nom : noms) {
-        for (auto& op : nom->ops()) analyze(op);
+        for (auto& op : nom->ops()) analyze_union(op);
+        // for (auto& op : nom->ops()) analyze(op);
     }
 }
+
+const DefSet* ArrAna::phi_web(const Def* from) const { return union_find_.find(from); }
 
 void ArrAna::print(std::ostream& os) const {
     absl::flat_hash_set<const ArrGraph::ArrNode*> printedNodes;
 
     os << "digraph Arr {\n";
-    for (auto& node : graph_) { print(os, node.get(), printedNodes); }
+    // for (auto& node : graph_) { print(os, node.get(), printedNodes); }
+    for (auto onion : union_find_) print_union(os, *onion);
     os << "}" << std::endl;
 }
 
@@ -666,21 +786,40 @@ void ArrAna::print(std::ostream& os,
                    absl::flat_hash_set<const ArrGraph::ArrNode*>& printedNodes) const {
     if (!printedNodes.emplace(node).second) return;
 
-    os << "\"" << node->name() << "\" [label=\"";
-    std::stringstream ss;
-    node->def()->stream(ss, 0);
+    print(os, node->def());
+
+    for (auto* child : *node) {
+        print(os, child, printedNodes);
+        print(os, node->def(), child->def());
+    }
+}
+
+void ArrAna::print_union(std::ostream& os, const DefSet& onion) const {
+    for (auto def : onion) {
+        print(os, def);
+        if (def != *onion.begin()) print(os, def, *onion.begin());
+    }
+}
+
+void ArrAna::print(std::ostream& os, const Def* d) const {
+    os << "\"" << d->unique_name() << "\" [label=\"";
     { // skip new-line
+        std::stringstream ss;
+        d->stream(ss, 0);
         std::string str{ss.str()};
         os << std::string{++str.cbegin(), str.cend()};
     }
-    if (node->def()->isa<Var>() || (node->def()->isa<Extract>() && node->def()->op(0)->isa<Var>()))
-        os << "\"];\n";
+    if (d->isa<Var>() || (d->isa<Extract>() && d->op(0)->isa<Var>() && isa_lit(d->op(0)->arity())))
+        os << "\", color=red];\n";
+    else if (!d->isa<Extract>() && !d->isa<Insert>())
+        os << "\", color=blue, shape=rect];\n";
+    else if (!d->isa<Extract>())
+        os << "\", color=darkorchid, shape=rect];\n";
     else
         os << "\", shape=rect];\n";
-    for (auto* child : *node) {
-        print(os, child, printedNodes);
-        os << "\"" << node->name() << "\" -> \"" << child->name() << "\";\n";
-    }
+}
+void ArrAna::print(std::ostream& os, const Def* d0, const Def* d1) const {
+    os << "\"" << d1->unique_name() << "\" -> \"" << d0->unique_name() << "\";\n";
 }
 
 void arr2mem(World& w) {
