@@ -6,6 +6,7 @@ add_thorin_dialect(affine
         affine/passes/lower_for.h
     DEPENDS
         mem
+        core
     INSTALL
 )
 
@@ -37,22 +38,6 @@ add_thorin_dialect(autodiff
     INSTALL
 )
 
-add_thorin_dialect(core
-    SOURCES
-        core/core.cpp
-        core/core.h
-        core/normalizers.cpp
-        core/be/ll/ll.cpp
-        core/be/ll/ll.h
-        core/pass/rw/lower_zip.cpp
-        core/pass/rw/lower_zip.h
-    DEPENDS
-        math
-        mem
-        clos
-    INSTALL
-)
-
 add_thorin_dialect(clos
     SOURCES
         clos/clos.cpp
@@ -76,6 +61,31 @@ add_thorin_dialect(clos
         affine
     HEADER_DEPENDS
         core
+    INSTALL
+)
+
+add_thorin_dialect(compile
+    SOURCES
+        compile/compile.cpp
+        compile/compile.h
+        compile/normalizers.cpp
+        compile/passes/debug_print.cpp
+        compile/passes/debug_print.h
+    INSTALL
+)
+
+add_thorin_dialect(core
+    SOURCES
+        core/core.cpp
+        core/core.h
+        core/normalizers.cpp
+        core/be/ll/ll.cpp
+        core/be/ll/ll.h
+        core/pass/rw/lower_zip.cpp
+        core/pass/rw/lower_zip.h
+    DEPENDS
+        math
+        mem
     INSTALL
 )
 
@@ -124,6 +134,8 @@ add_thorin_dialect(mem
         mem/passes/arr2mem.h
         mem/phases/rw/add_mem.cpp
         mem/phases/rw/add_mem.h
+    DEPENDS
+        compile
     HEADER_DEPENDS
         core
     INSTALL

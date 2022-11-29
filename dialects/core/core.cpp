@@ -11,9 +11,7 @@
 using namespace thorin;
 
 extern "C" THORIN_EXPORT DialectInfo thorin_get_dialect_info() {
-    return {"core",
-            [](PipelineBuilder& builder) { builder.extend_opt_phase([](PassMan& man) { man.add<core::LowerZip>(); }); },
-            [](Backends& backends) { backends["ll"] = &ll::emit; },
+    return {"core", nullptr, nullptr, [](Backends& backends) { backends["ll"] = &ll::emit; },
             [](Normalizers& normalizers) { core::register_normalizers(normalizers); }};
 }
 

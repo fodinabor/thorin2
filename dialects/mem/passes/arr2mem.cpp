@@ -832,8 +832,8 @@ void arr2mem(World& w) {
 
     auto direct = Dialect::load("direct", {});
     PassMan man{w};
-    auto add_ds2cps =
-        reinterpret_cast<decltype(&direct::thorin_add_direct_ds2cps)>(dl::get(direct.handle(), "thorin_add_direct_ds2cps"));
+    auto add_ds2cps = reinterpret_cast<decltype(&direct::thorin_add_direct_ds2cps)>(
+        dl::get(direct.handle(), "thorin_add_direct_ds2cps"));
     add_ds2cps(man);
     man.run();
     PassMan::run<LamSpec>(w);

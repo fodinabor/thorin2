@@ -195,9 +195,11 @@ TEST_P(ZipAxiomTest, zip_dyn) {
 
                     auto add = core::op(
                         core::wrap::add, w.lit_nat(0), errors,
-                        w.select(w.lit(errors->type(), 0), w.lit(errors->type(), 1),
-                                 core::op(core::icmp::e, w.extract(zip_res, core::op(core::conv::u2u, w.type_idx(zip_res->arity()), i)),
-                                      w.extract(gt, core::op(core::conv::u2u, w.type_idx(gt->arity()), i)))));
+                        w.select(
+                            w.lit(errors->type(), 0), w.lit(errors->type(), 1),
+                            core::op(core::icmp::e,
+                                     w.extract(zip_res, core::op(core::conv::u2u, w.type_idx(zip_res->arity()), i)),
+                                     w.extract(gt, core::op(core::conv::u2u, w.type_idx(gt->arity()), i)))));
                     body->app(false, yield, w.tuple({add, zip_res, gt}));
                 }
 
