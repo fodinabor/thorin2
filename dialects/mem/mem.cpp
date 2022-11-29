@@ -1,3 +1,5 @@
+#include "dialects/mem/mem.h"
+
 #include <thorin/config.h>
 #include <thorin/pass/pass.h>
 
@@ -17,24 +19,26 @@
 #include "dialects/mem/passes/fp/ssa_constr.h"
 #include "dialects/mem/passes/rw/alloc2malloc.h"
 #include "dialects/mem/passes/rw/remem_elim.h"
+#include "dialects/mem/phases/rw/add_mem.h"
 
 using namespace thorin;
 
 extern "C" THORIN_EXPORT DialectInfo thorin_get_dialect_info() {
     return {"mem",
             [](PipelineBuilder& builder) {
-        builder.extend_opt_phase([](PassMan& man) {
-            auto br = man.add<BetaRed>();
-            auto er = man.add<EtaRed>();
-            auto ee = man.add<EtaExp>(er);
-            man.add<mem::SSAConstr>(ee);
-            man.add<mem::CopyProp>(br, ee);
-        });
-        builder.extend_codegen_prep_phase([](PassMan& man) {
-            man.add<mem::RememElim>();
-            man.add<mem::Alloc2Malloc>();
-        });
-        builder.extend_free_opts(&mem::arr2mem);
+                builder.extend_opt_phase([](PassMan& man) {
+                    auto br = man.add<BetaRed>();
+                    auto er = man.add<EtaRed>();
+                    auto ee = man.add<EtaExp>(er);
+                    man.add<mem::SSAConstr>(ee);
+                    man.add<mem::CopyProp>(br, ee);
+                });
+                builder.extend_codegen_prep_phase([](PassMan& man) {
+                    man.add<mem::RememElim>();
+                    man.add<mem::Alloc2Malloc>();
+                });
+                // FIXME
+                // builder.extend_opt_phase(&mem::arr2mem);
             },
             nullptr, [](Normalizers& normalizers) { mem::register_normalizers(normalizers); }};
 }

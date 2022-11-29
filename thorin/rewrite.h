@@ -6,28 +6,43 @@
 
 namespace thorin {
 
-/// Rewrites part of a program.
+/// Recurseivly rewrites part of a program **into** the provided World.
+/// This World may be different than the World we started with.
 class Rewriter {
 public:
-    Rewriter(World& old_world, World& new_world, const Scope* scope = nullptr)
-        : old_world(old_world)
-        , new_world(new_world)
-        , scope(scope) {
-        old2new[old_world.univ()] = new_world.univ();
-    }
-    Rewriter(World& world, const Scope* scope = nullptr)
-        : Rewriter(world, world, scope) {}
+    Rewriter(World& world)
+        : world_(world) {}
 
-    const Def* rewrite(const Def* old_def);
-    World& world() {
-        assert(&old_world == &new_world);
-        return old_world;
+    World& world() { return world_; }
+
+    /// @name recursively rewrite old Defs
+    ///@{
+    const Def* map(const Def* old_def, const Def* new_def) { return old2new_[old_def] = new_def; }
+    virtual const Def* rewrite(const Def*);
+    virtual const Def* rewrite_structural(const Def*);
+    virtual const Def* rewrite_nom(Def*);
+    ///@}
+
+private:
+    World& world_;
+    Def2Def old2new_;
+};
+
+class ScopeRewriter : public Rewriter {
+public:
+    ScopeRewriter(World& world, const Scope& scope)
+        : Rewriter(world)
+        , scope_(scope) {}
+
+    const Scope& scope() const { return scope_; }
+
+    const Def* rewrite(const Def* old_def) override {
+        if (!old_def || !scope().bound(old_def)) return old_def;
+        return Rewriter::rewrite(old_def);
     }
 
-    World& old_world;
-    World& new_world;
-    const Scope* scope;
-    Def2Def old2new;
+private:
+    const Scope& scope_;
 };
 
 /// Rewrites @p def by mapping @p old_def to @p new_def while obeying @p scope.
@@ -44,8 +59,5 @@ DefArray rewrite(Def* nom, const Def* arg);
 
 /// Same as above but uses @p scope as an optimization instead of computing a new Scope.
 DefArray rewrite(Def* nom, const Def* arg, const Scope& scope);
-
-/// Removes unreachable and dead code by rebuilding the whole @p world into a new World.
-void cleanup(World& world);
 
 } // namespace thorin

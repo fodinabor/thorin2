@@ -12,7 +12,6 @@
 #include "thorin/def.h"
 #include "thorin/lam.h"
 #include "thorin/rewrite.h"
-#include "thorin/tables.h"
 #include "thorin/tuple.h"
 #include "thorin/world.h"
 
@@ -189,17 +188,17 @@ static const Def* follow_mem(const Def2Def& val2mem, const Def* mem) {
 
 static const Def* array_fill(World& w, const Def* dst_mem, const Def* dst, const Def* val, const Def* size) {
     auto fill_wrap = w.nom_lam(w.cn({mem::type_mem(w), w.cn(mem::type_mem(w))}), w.dbg("fill_wrap"));
-    auto fill      = w.nom_lam(w.cn({mem::type_mem(w), w.type_int(0_s)}), w.dbg("fill"));
+    auto fill      = w.nom_lam(w.cn({mem::type_mem(w), w.type_idx(0_s)}), w.dbg("fill"));
     auto brk       = w.nom_lam(w.cn(mem::type_mem(w)), nullptr);
     auto cnt       = w.nom_lam(w.cn(mem::type_mem(w)), nullptr);
 
     {
         auto [mem, i] = fill->vars<2>();
 
-        auto lea_dst   = mem::op_lea(dst, core::op(core::conv::u2u, w.type_int(size), i));
+        auto lea_dst   = mem::op_lea(dst, core::op(core::conv::u2u, w.type_idx(size), i));
         auto store_mem = mem::op_store(mem, lea_dst, val);
 
-        auto inc = core::op(core::wrap::add, WMode::none, i, w.lit_int(i->type(), 1));
+        auto inc = core::op(core::wrap::add, core::Mode::none, i, w.lit(i->type(), 1));
         fill->branch(w.lit_ff(), core::op(core::icmp::ul, inc, core::op_bitcast(i->type(), size)), cnt, brk, store_mem);
 
         {
@@ -211,7 +210,7 @@ static const Def* array_fill(World& w, const Def* dst_mem, const Def* dst, const
             brk->app(w.lit_ff(), fill_wrap->var(1), mem);
         }
     }
-    fill_wrap->app(false, fill, {fill_wrap->var(0_s), w.lit(w.type_int(0_s), 0)});
+    fill_wrap->app(false, fill, {fill_wrap->var(0_s), w.lit(w.type_idx(0_s), 0)});
 
     auto ds_app = w.app(
         w.app(w.ax<direct::cps2ds>(), {fill_wrap->type()->dom(0_s), fill_wrap->type()->dom(1_s)->as<Pi>()->dom()}),
@@ -223,13 +222,13 @@ static const Def* array_copy(World& w, const Def* src_mem, const Def* src, const
     auto [mem, dst] = mem::op_malloc(match<mem::Ptr, false>(src->type())->arg(0), src_mem)->projs<2>();
 
     auto copy_wrap = w.nom_lam(w.cn({mem::type_mem(w), w.cn({mem::type_mem(w), dst->type()})}), nullptr);
-    auto copy      = w.nom_lam(w.cn({mem::type_mem(w), w.type_int(0_s)}), w.dbg("copy"));
+    auto copy      = w.nom_lam(w.cn({mem::type_mem(w), w.type_idx(0_s)}), w.dbg("copy"));
     auto brk       = w.nom_lam(w.cn(mem::type_mem(w)), nullptr);
     auto cnt       = w.nom_lam(w.cn(mem::type_mem(w)), nullptr);
     {
         auto [mem, i] = copy->vars<2>();
 
-        auto idx             = core::op(core::conv::u2u, w.type_int(size), i);
+        auto idx             = core::op(core::conv::u2u, w.type_idx(size), i);
         auto lea_src         = mem::op_lea(src, idx);
         auto [load_mem, val] = mem::op_load(mem, lea_src)->projs<2>();
         mem                  = load_mem;
@@ -237,7 +236,7 @@ static const Def* array_copy(World& w, const Def* src_mem, const Def* src, const
         auto lea_dst   = mem::op_lea(dst, idx);
         auto store_mem = mem::op_store(load_mem, lea_dst, val);
 
-        auto inc = core::op(core::wrap::add, WMode::none, i, w.lit_int(i->type(), 1));
+        auto inc = core::op(core::wrap::add, core::Mode::none, i, w.lit(i->type(), 1));
         copy->branch(w.lit_ff(), core::op(core::icmp::ul, inc, core::op_bitcast(i->type(), size)), cnt, brk, store_mem);
 
         {
@@ -250,7 +249,7 @@ static const Def* array_copy(World& w, const Def* src_mem, const Def* src, const
             brk->set_filter(w.lit_ff());
         }
     }
-    copy_wrap->app(false, copy, {copy_wrap->var(0_s), w.lit(w.type_int(0_s), 0)});
+    copy_wrap->app(false, copy, {copy_wrap->var(0_s), w.lit(w.type_idx(0_s), 0)});
 
     auto ds_app = w.app(
         w.app(w.ax<direct::cps2ds>(), {copy_wrap->type()->dom(0_s), copy_wrap->type()->dom(1_s)->as<Pi>()->dom()}),
@@ -264,7 +263,7 @@ const Def* Arr2Mem::rewrite(Lam*& curr_nom, const Def* def) {
         // need new malloc each time..
         if (!(isa_dependent_array(def) && def->num_uses() > 1)) return new_def->second;
     }
-    if (def->no_dep()) return def;
+    if (def->dep_none()) return def;
     if (auto nom = def->isa_nom<Lam>()) { return rewrite(nom); }
 
     // def->dump(0);
@@ -448,7 +447,7 @@ const Def* Arr2Mem::add_mem_to_lams(Lam* curr_lam, const Def* def) {
 
     world_.DLOG("rewriting {} in {}", def, place);
 
-    if (auto nom_lam = def->isa_nom<Lam>(); nom_lam && nom_lam->is_unset()) return def;
+    if (auto nom_lam = def->isa_nom<Lam>(); nom_lam && !nom_lam->is_set()) return def;
     if (auto it = mem_rewritten_.find(def); it != mem_rewritten_.end()) {
         auto tmp = it->second;
         if (match<mem::M>(def->type())) {
@@ -834,7 +833,7 @@ void arr2mem(World& w) {
     auto direct = Dialect::load("direct", {});
     PassMan man{w};
     auto add_ds2cps =
-        reinterpret_cast<decltype(&thorin_add_direct_ds2cps)>(dl::get(direct.handle(), "thorin_add_direct_ds2cps"));
+        reinterpret_cast<decltype(&direct::thorin_add_direct_ds2cps)>(dl::get(direct.handle(), "thorin_add_direct_ds2cps"));
     add_ds2cps(man);
     man.run();
     PassMan::run<LamSpec>(w);

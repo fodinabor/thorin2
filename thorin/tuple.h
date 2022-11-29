@@ -66,6 +66,8 @@ public:
     Arr* set_body(const Def* body) { return Def::set(1, body)->as<Arr>(); }
     ///@}
 
+    const Def* reduce(const Def* arg) const;
+
     /// @name virtual methods
     ///@{
     bool check() override;
@@ -97,6 +99,8 @@ public:
     Pack* set(const Def* body) { return Def::set(0, body)->as<Pack>(); }
     ///@}
 
+    const Def* reduce(const Def* arg) const;
+
     /// @name virtual methods
     ///@{
     const Def* rebuild(World&, const Def*, Defs, const Def*) const override;
@@ -107,9 +111,6 @@ public:
     static constexpr auto Node = Node::Pack;
     friend class World;
 };
-
-inline bool is_sigma_or_arr(const Def* def) { return def->isa<Sigma>() || def->isa<Arr>(); }
-inline bool is_tuple_or_pack(const Def* def) { return def->isa<Tuple>() || def->isa<Pack>(); }
 
 /// Extracts from a Sigma or Arr-typed Extract::tuple the element at position Extract::index.
 class Extract : public Def {

@@ -10,7 +10,7 @@ namespace thorin::affine {
 /// Returns the affine_for axiom applied with \a params.
 /// See documentation for %affine.For axiom in @ref affine.
 inline const Def* fn_for(World& w, const Def* iter_type, Defs params) {
-    assert(isa<Tag::Int>(iter_type) && "affine.for expects Int as iter type");
+    assert(iter_type->isa<Idx>() && "affine.for expects Int as iter type");
     return w.app(w.ax<affine::For>(), {iter_type->as<App>()->arg(), w.lit_nat(params.size()), w.tuple(params)});
 }
 

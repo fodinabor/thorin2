@@ -32,19 +32,14 @@ namespace thorin::fe {
 ///      * If default argument is **provided** we have the same behavior as in 2.
 class Parser {
 public:
-    Parser(World&,
-           std::string_view,
-           std::istream&,
-           ArrayRef<std::string>,
-           const Normalizers*,
-           std::ostream* md = nullptr);
+    Parser(World&, std::string_view, std::istream&, Span<std::string>, const Normalizers*, std::ostream* md = nullptr);
 
     World& world() { return lexer_.world(); }
 
     /// @name entry points
     ///@{
     static Parser
-    import_module(World&, std::string_view, ArrayRef<std::string> = {}, const Normalizers* normalizers = nullptr);
+    import_module(World&, std::string_view, Span<std::string> = {}, const Normalizers* normalizers = nullptr);
     void parse_module();
     void bootstrap(std::ostream&);
     ///@}
@@ -93,10 +88,10 @@ private:
     const Def* parse_tuple();
     const Def* parse_type();
     const Def* parse_pi();
-    const Def* parse_lam();
     const Def* parse_lit();
     const Def* parse_var();
     const Def* parse_insert();
+    Lam* parse_lam(bool decl = false);
     ///@}
 
     /// @name ptrns
@@ -109,11 +104,10 @@ private:
 
     /// @name decls
     ///@{
-    const Def* parse_decls(bool expr = true);
+    const Def* parse_decls(std::string_view ctxt);
     void parse_ax();
     void parse_let();
     void parse_nom();
-    void parse_nom_fun();
     /// If @p sym is **not** empty, this is an inline definition of @p sym,
     /// otherwise it's a standalone definition.
     void parse_def(Sym sym = {});
@@ -168,14 +162,6 @@ private:
     /// Same above but uses @p ahead() as @p tok.
     [[noreturn]] void syntax_err(std::string_view what, std::string_view ctxt) { syntax_err(what, ahead(), ctxt); }
     ///@}
-
-    Parser(World&,
-           std::string_view,
-           std::istream&,
-           ArrayRef<std::string>,
-           const Normalizers*,
-           const Scopes&,
-           const SymSet&);
 
     Lexer lexer_;
     Scopes scopes_;

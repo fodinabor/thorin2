@@ -8,7 +8,7 @@ namespace thorin::core {
 
 /// Lowers the zip axiom to use the affine for axiom.
 /// Requires LowerFor and DS2CPS to remove newly introduced axioms afterwards.
-class LowerZip : public RWPass<Lam> {
+class LowerZip : public RWPass<LowerZip, Lam> {
 public:
     LowerZip(PassMan& man)
         : RWPass(man, "lower_zip") {}

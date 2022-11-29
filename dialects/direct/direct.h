@@ -5,21 +5,40 @@
 #include "dialects/direct/autogen.h"
 
 namespace thorin::direct {
-// .ax %direct.ds2cps: Π [T: *, U: *] -> (T -> U) -> .Cn [T, .Cn U];
-inline const Def* op_ds2cps(const Def* ds_fun) {
-    auto& w   = ds_fun->world();
-    auto type = ds_fun->type()->as<Pi>();
-    return w.app(w.app(w.ax<direct::ds2cps>(), {type->dom(), type->codom()}), ds_fun);
+
+inline const Def* op_cps2ds_dep(const Def* f) {
+    auto& world = f->world();
+    // TODO: assert continuation
+    world.DLOG("f: {} : {}", f, f->type());
+    auto f_ty = f->type()->as<Pi>();
+    auto T    = f_ty->dom(0);
+    auto U    = f_ty->dom(1)->as<Pi>()->dom();
+    world.DLOG("T: {}", T);
+    world.DLOG("U: {}", U);
+
+    auto Uf = world.nom_lam(world.pi(T, world.type()), world.dbg("Uf"));
+    world.DLOG("Uf: {} : {}", Uf, Uf->type());
+
+    const Def* rewritten_codom;
+
+    if (auto f_ty_sig = f_ty->dom()->isa_nom<Sigma>()) {
+        auto dom_var = f_ty_sig->var((nat_t)0);
+        world.DLOG("dom_var: {}", dom_var);
+        Scope r_scope{f_ty_sig};
+        auto closed_dom_var = Uf->var();
+        rewritten_codom     = thorin::rewrite(U, dom_var, closed_dom_var, r_scope);
+    } else {
+        rewritten_codom = U;
+    }
+    Uf->set_filter(true);
+    Uf->set_body(rewritten_codom);
+
+    auto ax_app = world.raw_app(world.ax<direct::cps2ds_dep>(), {T, Uf});
+
+    world.DLOG("axiom app: {} : {}", ax_app, ax_app->type());
+
+    return world.raw_app(ax_app, f);
 }
 
-// .ax %direct.cps2ds: Π [T: *, U: *] -> (.Cn [T, .Cn U]) -> (T -> U);
-inline const Def* op_cps2ds(const Def* cps_fun) {
-    auto& w   = cps_fun->world();
-    auto type = cps_fun->type()->as<Pi>();
-    assert(type->num_doms() == 2 && "function wrapped by cps2ds must have exactly 2 arguments (args, cn)");
-    return w.app(w.app(w.ax<direct::cps2ds>(), {type->dom(0), type->dom(1)->as<Pi>()->dom()}), cps_fun);
-}
-
+extern "C" THORIN_EXPORT thorin::Pass* thorin_add_direct_ds2cps(thorin::PassMan&);
 } // namespace thorin::direct
-
-extern "C" THORIN_EXPORT thorin::IPass* thorin_add_direct_ds2cps(thorin::PassMan&);

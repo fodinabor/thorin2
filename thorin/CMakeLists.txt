@@ -17,13 +17,10 @@ add_library(libthorin
     lam.h
     lattice.cpp
     lattice.h
-    normalize.cpp
-    normalize.h
     rewrite.cpp
     rewrite.h
     tuple.cpp
     tuple.h
-    tables.h
     world.cpp
     world.h
     analyses/cfg.cpp
@@ -73,10 +70,10 @@ add_library(libthorin
     pass/rw/partial_eval.h
     pass/rw/ret_wrap.cpp
     pass/rw/ret_wrap.h
-    pass/rw/bound_elim.cpp
-    pass/rw/bound_elim.h
     pass/rw/scalarize.cpp
     pass/rw/scalarize.h
+    phase/phase.cpp
+    phase/phase.h
     util/array.h
     util/assert.h
     util/bitset.cpp

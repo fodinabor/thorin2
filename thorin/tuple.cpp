@@ -2,11 +2,16 @@
 
 #include <cassert>
 
+#include "thorin/rewrite.h"
 #include "thorin/world.h"
+
+// TODO this code needs to be rewritten
 
 namespace thorin {
 
-static bool should_flatten(const Def* def) { return is_sigma_or_arr(def->sort() == Sort::Term ? def->type() : def); }
+static bool should_flatten(const Def* def) {
+    return (def->sort() == Sort::Term ? def->type() : def)->isa<Sigma, Arr>();
+}
 
 static bool nom_val_or_typ(const Def* def) {
     auto typ = (def->sort() == Sort::Term) ? def->type() : def;
@@ -107,6 +112,20 @@ bool Arr::check() {
 bool Sigma::check() {
     // TODO
     return true;
+}
+
+/*
+ * reduce
+ */
+
+const Def* Arr::reduce(const Def* arg) const {
+    if (auto nom = isa_nom<Arr>()) return rewrite(nom, arg, 1);
+    return body();
+}
+
+const Def* Pack::reduce(const Def* arg) const {
+    if (auto nom = isa_nom<Pack>()) return rewrite(nom, arg, 0);
+    return body();
 }
 
 } // namespace thorin

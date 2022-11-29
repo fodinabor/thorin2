@@ -16,6 +16,7 @@
 #include "thorin/pass/pass.h"
 
 #include "dialects/affine/affine.h"
+#include "dialects/core/autogen.h"
 #include "dialects/core/core.h"
 #include "dialects/core/pass/rw/lower_zip.h"
 #include "dialects/mem/mem.h"
@@ -28,26 +29,22 @@ TEST(Zip, fold) {
     World w;
 
     Normalizers normalizers;
-    auto mem_d = Dialect::load("mem", {});
-    mem_d.register_normalizers(normalizers);
-    fe::Parser::import_module(w, "mem", {}, &normalizers);
-
     auto core_d = Dialect::load("core", {});
     core_d.register_normalizers(normalizers);
     fe::Parser::import_module(w, "core", {}, &normalizers);
 
     // clang-format off
-    auto a = w.tuple({w.tuple({w.lit_int( 0), w.lit_int( 1), w.lit_int( 2)}),
-                      w.tuple({w.lit_int( 3), w.lit_int( 4), w.lit_int( 5)})});
+    auto a = w.tuple({w.tuple({w.lit_idx( 0), w.lit_idx( 1), w.lit_idx( 2)}),
+                      w.tuple({w.lit_idx( 3), w.lit_idx( 4), w.lit_idx( 5)})});
 
-    auto b = w.tuple({w.tuple({w.lit_int( 6), w.lit_int( 7), w.lit_int( 8)}),
-                      w.tuple({w.lit_int( 9), w.lit_int(10), w.lit_int(11)})});
+    auto b = w.tuple({w.tuple({w.lit_idx( 6), w.lit_idx( 7), w.lit_idx( 8)}),
+                      w.tuple({w.lit_idx( 9), w.lit_idx(10), w.lit_idx(11)})});
 
-    auto c = w.tuple({w.tuple({w.lit_int( 6), w.lit_int( 8), w.lit_int(10)}),
-                      w.tuple({w.lit_int(12), w.lit_int(14), w.lit_int(16)})});
+    auto c = w.tuple({w.tuple({w.lit_idx( 6), w.lit_idx( 8), w.lit_idx(10)}),
+                      w.tuple({w.lit_idx(12), w.lit_idx(14), w.lit_idx(16)})});
 
-    auto f = w.fn(Wrap::add, w.lit_nat(0), w.lit_nat(width2mod(32)));
-    auto i32_t = w.type_int_width(32);
+    auto f = core::fn(core::wrap::add, w.lit_nat(Idx::bitwidth2size(32)), 0_n);
+    auto i32_t = w.type_int(32);
     auto res = w.app(w.app(w.app(w.ax<core::zip>(), {/*r*/w.lit_nat(2), /*s*/w.tuple({w.lit_nat(2), w.lit_nat(3)})}),
                                              {/*n_i*/ w.lit_nat(2), /*Is*/w.pack(2, i32_t), /*n_o*/w.lit_nat(1), /*Os*/i32_t, f}),
                                              {a, b});
@@ -69,21 +66,21 @@ TEST_P(ZipAxiomTest, fold) {
     core_d.register_normalizers(normalizers);
     fe::Parser::import_module(w, "core", {}, &normalizers);
 
-    auto i32_t = w.type_int_width(32);
+    auto i32_t = w.type_int(32);
 
     const auto [A, B] = GetParam();
     EXPECT_EQ(A.size(), B.size());
     std::vector<const Def*> ALits(A.size()), BLits(B.size()), out_lits(A.size());
-    std::transform(A.cbegin(), A.cend(), ALits.begin(), [&w, i32_t](int v) { return w.lit_int(i32_t, v); });
-    std::transform(B.cbegin(), B.cend(), BLits.begin(), [&w, i32_t](int v) { return w.lit_int(i32_t, v); });
+    std::transform(A.cbegin(), A.cend(), ALits.begin(), [&w, i32_t](int v) { return w.lit(i32_t, v); });
+    std::transform(B.cbegin(), B.cend(), BLits.begin(), [&w, i32_t](int v) { return w.lit(i32_t, v); });
     std::transform(A.cbegin(), A.cend(), B.cbegin(), out_lits.begin(),
-                   [&w, i32_t](int a, int b) { return w.lit_int(i32_t, a + b); });
+                   [&w, i32_t](int a, int b) { return w.lit(i32_t, a + b); });
 
     auto ATup   = w.tuple(ALits);
     auto BTup   = w.tuple(BLits);
     auto OutTup = w.tuple(out_lits);
 
-    auto add = w.fn(Wrap::add, w.lit_nat(0), w.lit_nat(width2mod(32)));
+    auto add = core::fn(core::wrap::add, w.lit_nat(0), w.lit_nat(Idx::bitwidth2size(32)));
     auto zip = w.app(w.app(w.ax<core::zip>(), {w.lit_nat(1), w.tuple({w.lit_nat(A.size())})}),
                      {w.lit_nat(2), w.pack(2, i32_t), w.lit_nat(1), i32_t, add});
     auto res = w.app(zip, {ATup, BTup});
@@ -111,9 +108,9 @@ TEST_P(ZipAxiomTest, zip_dyn) {
     fe::Parser::import_module(w, direct_d.name(), {}, &normalizers);
 
     auto mem_t  = mem::type_mem(w);
-    auto i8_t   = w.type_int_width(8);
-    auto i32_t  = w.type_int_width(32);
-    auto i64_t  = w.type_int_width(64);
+    auto i8_t   = w.type_int(8);
+    auto i32_t  = w.type_int(32);
+    auto i64_t  = w.type_int(64);
     auto argv_t = mem::type_ptr(w.arr(w.top_nat(), mem::type_ptr(w.arr(w.top_nat(), i8_t))));
 
     const auto [A, B] = GetParam();
@@ -121,10 +118,10 @@ TEST_P(ZipAxiomTest, zip_dyn) {
 
     std::vector<const Def*> out_lits(A.size());
     std::transform(A.cbegin(), A.cend(), B.cbegin(), out_lits.begin(),
-                   [&w, i32_t](int a, int b) { return w.lit_int(i32_t, a + b); });
+                   [&w, i32_t](int a, int b) { return w.lit(i32_t, a + b); });
     auto out_tup = w.tuple(out_lits);
 
-    auto add = w.fn(Wrap::add, w.lit_nat(0), w.lit_nat(width2mod(32)));
+    auto add = core::fn(core::wrap::add, w.lit_nat(0), w.lit_nat(Idx::bitwidth2size(32)));
 
     // Cn [mem, i32, ptr(ptr(i32, 0), 0) Cn [mem, i32]]
     auto main_t = w.cn({mem_t, i32_t, argv_t, w.cn({mem_t, i32_t})});
@@ -147,9 +144,9 @@ TEST_P(ZipAxiomTest, zip_dyn) {
         auto [a_ptr, b_ptr]  = ab_ptr->projs<2>();
         // auto [b_mem, b_ptr]     = w.op_load(a_mem, w.op_lea(ptr, w.lit_int_width(1, 1)))->projs<2>();
         auto [len_mem, arr_len] = mem::op_load(a_mem, arr_len_slot)->projs<2>();
-        auto nat_arr_len        = core::op_bitcast(w.type_nat(), w.op(Conv::u2u, i64_t, arr_len));
-        auto a                  = w.pack(nat_arr_len, w.lit_int(i32_t, 0_u32));
-        auto b                  = w.pack(nat_arr_len, w.lit_int(i32_t, 0_u32));
+        auto nat_arr_len        = core::op_bitcast(w.type_nat(), core::op(core::conv::u2u, i64_t, arr_len));
+        auto a                  = w.pack(nat_arr_len, w.lit(i32_t, 0_u32));
+        auto b                  = w.pack(nat_arr_len, w.lit(i32_t, 0_u32));
         auto accumulator_type   = w.sigma({mem::type_mem(w), a_ptr->type(), b_ptr->type(), a->type(), b->type()});
 
         auto yield_type = w.cn(accumulator_type);
@@ -161,7 +158,7 @@ TEST_P(ZipAxiomTest, zip_dyn) {
 
             auto [a_mem, a_val] = mem::op_load(mem, mem::op_lea(a_ptr, iter))->projs<2>();
             auto [b_mem, b_val] = mem::op_load(a_mem, mem::op_lea(b_ptr, iter))->projs<2>();
-            auto index          = w.op(Conv::u2u, w.type_int(a->arity()), iter);
+            auto index          = core::op(core::conv::u2u, w.type_idx(a->arity()), iter);
             auto a_inserted     = w.insert(a, index, a_val);
             auto b_inserted     = w.insert(b, index, b_val);
             load_arrs->app(false, yield, w.tuple({b_mem, a_ptr, b_ptr, a_inserted, b_inserted}));
@@ -170,15 +167,15 @@ TEST_P(ZipAxiomTest, zip_dyn) {
         auto load_arrs_cont = w.nom_lam(w.cn(accumulator_type), w.dbg("load_arrays_cont"));
 
         parse_arrays_ret->set_filter(false);
-        parse_arrays_ret->set_body(affine::op_for(w.lit_int_width(32, 0), arr_len, w.lit_int_width(32, 1),
+        parse_arrays_ret->set_body(affine::op_for(w.lit_int(32, 0), arr_len, w.lit_int(32, 1),
                                                   {len_mem, a_ptr, b_ptr, a, b}, load_arrs, load_arrs_cont));
 
         {
-            auto ab_tpl               = load_arrs_cont->var();
+            auto ab_tpl                    = load_arrs_cont->var();
             auto [mem, a_ptr, b_ptr, a, b] = ab_tpl->projs<5>();
-            auto zip                  = w.app(w.app(w.ax<core::zip>(), {w.lit_nat(1), w.tuple({a->arity()})}),
-                                              {w.lit_nat(2), w.pack(2, i32_t), w.lit_nat(1), w.tuple({i32_t}), add});
-            auto zip_res              = w.app(zip, {a, b});
+            auto zip                       = w.app(w.app(w.ax<core::zip>(), {w.lit_nat(1), w.tuple({a->arity()})}),
+                                                   {w.lit_nat(2), w.pack(2, i32_t), w.lit_nat(1), w.tuple({i32_t}), add});
+            auto zip_res                   = w.app(zip, {a, b});
             zip->dump(0);
             zip->dump(5);
             zip_res->dump(0);
@@ -196,11 +193,11 @@ TEST_P(ZipAxiomTest, zip_dyn) {
 
                     auto [errors, zip_res, gt] = acc_tpl->projs<3>({w.dbg("errors"), w.dbg("zip_res"), w.dbg("gt")});
 
-                    auto add = w.op(
-                        Wrap::add, w.lit_nat(0), errors,
-                        w.select(w.lit_int(errors->type(), 0), w.lit_int(errors->type(), 1),
-                                 w.op(ICmp::e, w.extract(zip_res, w.op(Conv::u2u, w.type_int(zip_res->arity()), i)),
-                                      w.extract(gt, w.op(Conv::u2u, w.type_int(gt->arity()), i)))));
+                    auto add = core::op(
+                        core::wrap::add, w.lit_nat(0), errors,
+                        w.select(w.lit(errors->type(), 0), w.lit(errors->type(), 1),
+                                 core::op(core::icmp::e, w.extract(zip_res, core::op(core::conv::u2u, w.type_idx(zip_res->arity()), i)),
+                                      w.extract(gt, core::op(core::conv::u2u, w.type_idx(gt->arity()), i)))));
                     body->app(false, yield, w.tuple({add, zip_res, gt}));
                 }
 
@@ -212,8 +209,8 @@ TEST_P(ZipAxiomTest, zip_dyn) {
                 }
 
                 load_arrs_cont->set_filter(false);
-                load_arrs_cont->set_body(affine::op_for(w.lit_int_width(32, 0), arr_len, w.lit_int_width(32, 1),
-                                                        {w.lit_int_width(32, 0), zip_res, out_tup}, body, ret_cont));
+                load_arrs_cont->set_body(affine::op_for(w.lit_int(32, 0), arr_len, w.lit_int(32, 1),
+                                                        {w.lit_int(32, 0), zip_res, out_tup}, body, ret_cont));
             }
         }
     }

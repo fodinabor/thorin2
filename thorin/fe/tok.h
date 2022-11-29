@@ -16,16 +16,20 @@ namespace thorin::fe {
     m(K_let,    ".let"   )             \
     m(K_Bool,   ".Bool"  )             \
     m(K_Nat,    ".Nat"   )             \
+    m(K_Idx,    ".Idx"   )             \
     m(K_extern, ".extern")             \
     m(K_Arr,    ".Arr"   )             \
     m(K_Sigma,  ".Sigma" )             \
     m(K_Type,   ".Type"  )             \
+    m(K_Univ,   ".Univ"  )             \
     m(K_pack,   ".pack"  )             \
-    m(K_Pi,     ".Pi"    )             \
-    m(K_lam,    ".lam"   )             \
     m(K_Cn,     ".Cn"    )             \
-    m(K_cn,     ".cn"    )             \
     m(K_Fn,     ".Fn"    )             \
+    m(K_Pi,     ".Pi"    )             \
+    m(K_con,    ".con"   )             \
+    m(K_fun,    ".fun"   )             \
+    m(K_lam,    ".lam"   )             \
+    m(K_cn,     ".cn"    )             \
     m(K_fn,     ".fn"    )             \
     m(K_ff,     ".ff"    )             \
     m(K_tt,     ".tt"    )             \
@@ -62,6 +66,7 @@ constexpr auto Num_Keys = size_t(0) THORIN_KEY(CODE);
     m(T_arrow,      "→")                \
     m(T_assign,     "=")                \
     m(T_at,         "@")                \
+    m(T_bang,       "!")                \
     m(T_bot,        "⊥")                \
     m(T_top,        "⊤")                \
     m(T_box,        "□")                \
@@ -70,12 +75,12 @@ constexpr auto Num_Keys = size_t(0) THORIN_KEY(CODE);
     m(T_comma,      ",")                \
     m(T_dot,        ".")                \
     m(T_extract,    "#")                \
-    m(T_lam,        "λ")                \
+    m(T_lm,         "λ")                \
     m(T_semicolon,  ";")                \
     m(T_star,       "*")                \
 
 #define THORIN_SUBST(m)                 \
-    m("->",      T_arrow)               \
+    m(".lm",     T_lm   )               \
     m(".bot",    T_bot  )               \
     m(".top",    T_top  )               \
     m(".insert", K_ins  )               \
@@ -84,7 +89,8 @@ constexpr auto Num_Keys = size_t(0) THORIN_KEY(CODE);
     /* left     prec,    right  */      \
     m(Nil,      Bot,     Nil     )      \
     m(Nil,      Nil,     Nil     )      \
-    m(Pi,       Arrow,   Arrow   )      \
+    m(Lam,      Arrow,   Arrow   )      \
+    m(Nil,      Lam,     Pi      )      \
     m(Nil,      Pi,      App     )      \
     m(App,      App,     Extract )      \
     m(Extract,  Extract, Lit     )      \
@@ -145,7 +151,7 @@ public:
         : loc_(loc)
         , tag_(Tag::L_s)
         , u_(std::bit_cast<u64>(s)) {}
-    Tok(Loc loc, r64 r)
+    Tok(Loc loc, f64 r)
         : loc_(loc)
         , tag_(Tag::L_r)
         , u_(std::bit_cast<u64>(r)) {}

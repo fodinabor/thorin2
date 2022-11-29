@@ -8,7 +8,6 @@
 #include "thorin/def.h"
 #include "thorin/dialects.h"
 #include "thorin/error.h"
-#include "thorin/tables.h"
 #include "thorin/world.h"
 
 #include "thorin/fe/parser.h"
@@ -21,6 +20,7 @@
 #include "thorin/util/sys.h"
 
 #include "dialects/core/core.h"
+#include "dialects/math/math.h"
 #include "dialects/mem/mem.h"
 
 using namespace thorin;
@@ -30,8 +30,8 @@ using namespace thorin;
 TEST(RestrictedDependentTypes, join_singleton) {
     auto test_on_world = [](auto test) {
         World w;
-
         Normalizers normalizers;
+
         auto mem_d = Dialect::load("mem", {});
         mem_d.register_normalizers(normalizers);
         fe::Parser::import_module(w, "mem", {}, &normalizers);
@@ -40,8 +40,12 @@ TEST(RestrictedDependentTypes, join_singleton) {
         core_d.register_normalizers(normalizers);
         fe::Parser::import_module(w, "core", {}, &normalizers);
 
-        auto i32_t = w.type_int_width(32);
-        auto i64_t = w.type_int_width(64);
+        auto math_d = Dialect::load("math", {});
+        math_d.register_normalizers(normalizers);
+        fe::Parser::import_module(w, "math", {}, &normalizers);
+
+        auto i32_t = w.type_int(32);
+        auto i64_t = w.type_int(64);
 
         auto R = w.axiom(w.type(), w.dbg("R"));
         auto W = w.axiom(w.type(), w.dbg("W"));
@@ -89,10 +93,10 @@ TEST(RestrictedDependentTypes, join_singleton) {
             EXPECT_NONFATAL_FAILURE( // disable until we have vel type checking..
                 {
                     EXPECT_THROW( // float
-                        w.app(exp_lam, {w.type_real(32), R,
-                                        core::op_bitcast(w.app(Exp, {w.vel(DT, w.type_real(32)), w.vel(RW, R)}),
+                        w.app(exp_lam, {math::type_f32(w), R,
+                                        core::op_bitcast(w.app(Exp, {w.vel(DT, math::type_f32(w)), w.vel(RW, R)}),
                                                          w.lit(i32_t, 1000)),
-                                        w.nom_lam(w.cn(w.type_real(32)), nullptr)}),
+                                        w.nom_lam(w.cn(math::type_f32(w)), nullptr)}),
                         std::logic_error);
                 },
                 "std::logic_error");
@@ -101,10 +105,10 @@ TEST(RestrictedDependentTypes, join_singleton) {
             EXPECT_NONFATAL_FAILURE( // disable until we have vel type checking..
                 {
                     EXPECT_THROW( // float
-                        w.app(exp_lam, {w.type_real(32), W,
-                                        core::op_bitcast(w.app(Exp, {w.vel(DT, w.type_real(32)), w.vel(RW, W)}),
+                        w.app(exp_lam, {math::type_f32(w), W,
+                                        core::op_bitcast(w.app(Exp, {w.vel(DT, math::type_f32(w)), w.vel(RW, W)}),
                                                          w.lit(i32_t, 1000)),
-                                        w.nom_lam(w.cn(w.type_real(32)), nullptr)}),
+                                        w.nom_lam(w.cn(math::type_f32(w)), nullptr)}),
                         std::logic_error);
                 },
                 "std::logic_error");
@@ -136,8 +140,8 @@ TEST(RestrictedDependentTypes, join_singleton) {
 
         for (auto&& test : cases) {
             test_on_world([&test](World& w, auto R, auto W, auto Exp) {
-                auto i32_t = w.type_int_width(32);
-                auto i64_t = w.type_int_width(64);
+                auto i32_t = w.type_int(32);
+                auto i64_t = w.type_int(64);
                 auto RW    = w.join({w.singleton(R), w.singleton(W)}, w.dbg("RW"));
                 auto DT    = w.join({w.singleton(i32_t), w.singleton(i64_t)}, w.dbg("DT"));
 
@@ -174,10 +178,10 @@ TEST(RestrictedDependentTypes, join_singleton) {
             EXPECT_NONFATAL_FAILURE( // disable until we have vel type checking..
                 {
                     EXPECT_THROW( // float type error
-                        w.app(exp_lam, {w.type_real(32),
-                                        core::op_bitcast(w.app(Exp, {w.vel(DT, w.type_real(32)), w.vel(RW, R)}),
+                        w.app(exp_lam, {math::type_f32(w),
+                                        core::op_bitcast(w.app(Exp, {w.vel(DT, math::type_f32(w)), w.vel(RW, R)}),
                                                          w.lit(i32_t, 1000)),
-                                        w.nom_lam(w.cn(w.type_real(32)), nullptr)}),
+                                        w.nom_lam(w.cn(math::type_f32(w)), nullptr)}),
                         std::logic_error);
                 },
                 "std::logic_error");
@@ -197,16 +201,16 @@ TEST(RestrictedDependentTypes, join_singleton) {
             });
         cases.emplace_back([](World& w, auto, auto W, auto Exp, auto exp_lam, auto DT, auto RW, auto, auto) {
             EXPECT_ANY_THROW( // float + W type error (note, the float is not yet what triggers the issue..)
-                w.app(exp_lam, {w.type_real(32),
-                                core::op_bitcast(w.app(Exp, {w.vel(DT, w.type_real(32)), w.vel(RW, W)}),
-                                                 w.lit(w.type_real(32), 1000)),
-                                w.nom_lam(w.cn(w.type_real(32)), nullptr)}));
+                w.app(exp_lam, {math::type_f32(w),
+                                core::op_bitcast(w.app(Exp, {w.vel(DT, math::type_f32(w)), w.vel(RW, W)}),
+                                                 w.lit(math::type_f32(w), 1000)),
+                                w.nom_lam(w.cn(math::type_f32(w)), nullptr)}));
         });
 
         for (auto&& test : cases) {
             test_on_world([&test](World& w, auto R, auto W, auto Exp) {
-                auto i32_t = w.type_int_width(32);
-                auto i64_t = w.type_int_width(64);
+                auto i32_t = w.type_int(32);
+                auto i64_t = w.type_int(64);
                 auto RW    = w.join({w.singleton(R), w.singleton(W)}, w.dbg("RW"));
                 auto DT    = w.join({w.singleton(i32_t), w.singleton(i64_t)}, w.dbg("DT"));
 
@@ -226,8 +230,8 @@ TEST(RestrictedDependentTypes, join_singleton) {
 
 TEST(RestrictedDependentTypes, ll) {
     World w;
-
     Normalizers normalizers;
+
     auto mem_d = Dialect::load("mem", {});
     mem_d.register_normalizers(normalizers);
     fe::Parser::import_module(w, "mem", {}, &normalizers);
@@ -236,8 +240,12 @@ TEST(RestrictedDependentTypes, ll) {
     core_d.register_normalizers(normalizers);
     fe::Parser::import_module(w, "core", {}, &normalizers);
 
+    auto math_d = Dialect::load("math", {});
+    math_d.register_normalizers(normalizers);
+    fe::Parser::import_module(w, "math", {}, &normalizers);
+
     auto mem_t  = mem::type_mem(w);
-    auto i32_t  = w.type_int_width(32);
+    auto i32_t  = w.type_int(32);
     auto argv_t = mem::type_ptr(mem::type_ptr(i32_t));
 
     // Cn [mem, i32, ptr(ptr(i32, 0), 0) Cn [mem, i32]]
@@ -250,7 +258,7 @@ TEST(RestrictedDependentTypes, ll) {
 
     auto RW = w.join({w.singleton(R), w.singleton(W)}, w.dbg("RW"));
 
-    auto DT     = w.join({w.singleton(i32_t), w.singleton(w.type_real(32))}, w.dbg("DT"));
+    auto DT     = w.join({w.singleton(i32_t), w.singleton(math::type_f32(w))}, w.dbg("DT"));
     auto exp_pi = w.nom_pi(w.type())->set_dom({DT, RW});
     exp_pi->set_codom(w.type());
 

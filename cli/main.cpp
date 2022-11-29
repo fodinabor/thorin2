@@ -8,13 +8,13 @@
 
 #include "thorin/config.h"
 #include "thorin/dialects.h"
-#include "thorin/rewrite.h"
 
 #include "thorin/be/dot/dot.h"
 #include "thorin/fe/parser.h"
 #include "thorin/pass/optimize.h"
 #include "thorin/pass/pass.h"
 #include "thorin/pass/pipelinebuilder.h"
+#include "thorin/phase/phase.h"
 #include "thorin/util/sys.h"
 
 using namespace thorin;
@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
     try {
         static const auto version = "thorin command-line utility version " THORIN_VER "\n";
 
+        World::State state;
         bool show_help    = false;
         bool show_version = false;
         std::string input, prefix;
@@ -36,29 +37,30 @@ int main(int argc, char** argv) {
         int verbose      = 0;
         int opt          = 2;
         auto inc_verbose = [&](bool) { ++verbose; };
-        World::State state;
+        auto& flags      = state.pod.flags;
 
         // clang-format off
         auto cli = lyra::cli()
             | lyra::help(show_help)
-            | lyra::opt(show_version                  )["-v"]["--version"           ]("Display version info and exit.")
-            | lyra::opt(clang,          "clang"       )["-c"]["--clang"             ]("Path to clang executable (default: '" THORIN_WHICH " clang').")
-            | lyra::opt(dialect_plugins,"dialect"     )["-d"]["--dialect"           ]("Dynamically load dialect [WIP].")
-            | lyra::opt(dialect_paths,  "path"        )["-D"]["--dialect-path"      ]("Path to search dialects in.")
-            | lyra::opt(inc_verbose                   )["-V"]["--verbose"           ]("Verbose mode. Multiple -V options increase the verbosity. The maximum is 4.").cardinality(0, 4)
-            | lyra::opt(opt,            "level"       )["-O"]["--optimize"          ]("Optimization level (default: 2).")
-            | lyra::opt(output[Dot   ], "file"        )      ["--output-dot"        ]("Emits the Thorin program as a graph using Graphviz' DOT language.")
-            | lyra::opt(output[H     ], "file"        )      ["--output-h"          ]("Emits a header file to be used to interface with a dialect in C++.")
-            | lyra::opt(output[LL    ], "file"        )      ["--output-ll"         ]("Compiles the Thorin program to LLVM.")
-            | lyra::opt(output[Md    ], "file"        )      ["--output-md"         ]("Emits the input formatted as Markdown.")
-            | lyra::opt(output[Thorin], "file"        )["-o"]["--output-thorin"     ]("Emits the Thorin program again.")
-            | lyra::opt(state.flags.dump_gid          )      ["--dump-gid"          ]("Emits gid of inline expressions as a comment in output.")
-            | lyra::arg(input,          "file"        )                              ("Input file.")
+            | lyra::opt(show_version             )["-v"]["--version"           ]("Display version info and exit.")
+            | lyra::opt(clang,          "clang"  )["-c"]["--clang"             ]("Path to clang executable (default: '" THORIN_WHICH " clang').")
+            | lyra::opt(dialect_plugins,"dialect")["-d"]["--dialect"           ]("Dynamically load dialect [WIP].")
+            | lyra::opt(dialect_paths,  "path"   )["-D"]["--dialect-path"      ]("Path to search dialects in.")
+            | lyra::opt(inc_verbose              )["-V"]["--verbose"           ]("Verbose mode. Multiple -V options increase the verbosity. The maximum is 4.").cardinality(0, 4)
+            | lyra::opt(opt,            "level"  )["-O"]["--optimize"          ]("Optimization level (default: 2).")
+            | lyra::opt(output[Dot   ], "file"   )      ["--output-dot"        ]("Emits the Thorin program as a graph using Graphviz' DOT language.")
+            | lyra::opt(output[H     ], "file"   )      ["--output-h"          ]("Emits a header file to be used to interface with a dialect in C++.")
+            | lyra::opt(output[LL    ], "file"   )      ["--output-ll"         ]("Compiles the Thorin program to LLVM.")
+            | lyra::opt(output[Md    ], "file"   )      ["--output-md"         ]("Emits the input formatted as Markdown.")
+            | lyra::opt(output[Thorin], "file"   )["-o"]["--output-thorin"     ]("Emits the Thorin program again.")
+            | lyra::opt(flags.dump_gid, "level"  )      ["--dump-gid"          ]("Dumps gid of inline expressions as a comment in output if <level> > 0. Use a <level> of 2 to also emit the gid of trivial defs.")
+            | lyra::opt(flags.dump_recursive     )      ["--dump-recursive"    ]("Dumps Thorin program with a simple recursive algorithm that is not readable again from Thorin but is less fragile and also works for broken Thorin programs.")
 #if THORIN_ENABLE_CHECKS
-            | lyra::opt(breakpoints,    "gid"         )["-b"]["--break"             ]("Trigger breakpoint upon construction of node with global id <gid>. Useful when running in a debugger.")
-            | lyra::opt(state.flags.reeval_breakpoints)      ["--reeval-breakpoints"]("Triggers breakpoint even upon unfying a node that has already been built.")
-            | lyra::opt(state.flags.trace)                   ["--trace"             ]("Output gids during World::unify/insert.")
+            | lyra::opt(breakpoints,    "gid"    )["-b"]["--break"             ]("Trigger breakpoint upon construction of node with global id <gid>. Useful when running in a debugger.")
+            | lyra::opt(flags.reeval_breakpoints )      ["--reeval-breakpoints"]("Triggers breakpoint even upon unfying a node that has already been built.")
+            | lyra::opt(flags.trace_gids         )      ["--trace-gids"        ]("Output gids during World::unify/insert.")
 #endif
+            | lyra::arg(input,          "file"   )                              ("Input file.")
             ;
         // clang-format on
 
@@ -132,9 +134,9 @@ int main(int argc, char** argv) {
 
         // clang-format off
         switch (opt) {
-            case 0:                           break;
-            case 1: cleanup(world);           break;
-            case 2: optimize(world, builder); break;
+            case 0:                             break;
+            case 1: Phase::run<Cleanup>(world); break;
+            case 2: optimize(world, builder);   break;
             default: errln("error: illegal optimization level '{}'", opt);
         }
         // clang-format on
