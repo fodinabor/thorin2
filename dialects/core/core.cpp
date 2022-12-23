@@ -5,13 +5,19 @@
 
 #include "thorin/dialects.h"
 
+#include "thorin/pass/pipelinebuilder.h"
+
 #include "dialects/core/be/ll/ll.h"
 #include "dialects/core/pass/rw/lower_zip.h"
 
 using namespace thorin;
 
 extern "C" THORIN_EXPORT DialectInfo thorin_get_dialect_info() {
-    return {"core", nullptr, nullptr, [](Backends& backends) { backends["ll"] = &ll::emit; },
+    return {"core",
+            [](PipelineBuilder& builder) {
+                builder.extend_codegen_prep_phase([](PassMan& man) { man.add<core::LowerZip>(); });
+            },
+            nullptr, [](Backends& backends) { backends["ll"] = &ll::emit; },
             [](Normalizers& normalizers) { core::register_normalizers(normalizers); }};
 }
 

@@ -80,7 +80,7 @@ TEST_P(ZipAxiomTest, fold) {
     auto BTup   = w.tuple(BLits);
     auto OutTup = w.tuple(out_lits);
 
-    auto add = core::fn(core::wrap::add, w.lit_nat(0), w.lit_nat(Idx::bitwidth2size(32)));
+    auto add = core::fn(core::wrap::add, w.lit_nat(Idx::bitwidth2size(32)), 0_n);
     auto zip = w.app(w.app(w.ax<core::zip>(), {w.lit_nat(1), w.tuple({w.lit_nat(A.size())})}),
                      {w.lit_nat(2), w.pack(2, i32_t), w.lit_nat(1), i32_t, add});
     auto res = w.app(zip, {ATup, BTup});
@@ -121,7 +121,7 @@ TEST_P(ZipAxiomTest, zip_dyn) {
                    [&w, i32_t](int a, int b) { return w.lit(i32_t, a + b); });
     auto out_tup = w.tuple(out_lits);
 
-    auto add = core::fn(core::wrap::add, w.lit_nat(0), w.lit_nat(Idx::bitwidth2size(32)));
+    auto add = core::fn(core::wrap::add, w.lit_nat(Idx::bitwidth2size(32)), 0_n);
 
     // Cn [mem, i32, ptr(ptr(i32, 0), 0) Cn [mem, i32]]
     auto main_t = w.cn({mem_t, i32_t, argv_t, w.cn({mem_t, i32_t})});
@@ -227,11 +227,19 @@ TEST_P(ZipAxiomTest, zip_dyn) {
     w.dump();
 
     PipelineBuilder builder;
-    mem_d.register_passes(builder);
-    affine_d.register_passes(builder);
-    core_d.register_passes(builder);
-    direct_d.register_passes(builder);
-    optimize(w, builder);
+    Passes passes;
+
+    mem_d.add_passes(builder);
+    mem_d.register_passes(passes);
+    affine_d.add_passes(builder);
+    affine_d.register_passes(passes);
+    core_d.add_passes(builder);
+    core_d.register_passes(passes);
+    direct_d.add_passes(builder);
+    direct_d.register_passes(passes);
+
+    optimize(w, passes, builder);
+    optimize(w, passes, builder);
 
     w.dump();
 

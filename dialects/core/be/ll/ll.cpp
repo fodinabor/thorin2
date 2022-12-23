@@ -683,8 +683,10 @@ std::string Emitter::emit_bb(BB& bb, const Def* def) {
         auto t_src = convert(conv->arg()->type());
         auto t_dst = convert(conv->type());
 
-        nat_t w_src = *Idx::size2bitwidth(Idx::size(conv->arg()->type()));
-        nat_t w_dst = *Idx::size2bitwidth(Idx::size(conv->type()));
+        nat_t w_src = 64;
+        nat_t w_dst = 64;
+        if (auto o_src = Idx::size2bitwidth(Idx::size(conv->arg()->type()))) w_src = *o_src;
+        if (auto o_dst = Idx::size2bitwidth(Idx::size(conv->arg()->type()))) w_dst = *o_dst;
 
         if (w_src == w_dst) return v_src;
 
