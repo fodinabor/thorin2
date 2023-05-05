@@ -1,0 +1,71 @@
+// RUN: rm -f %t.ll ; \
+// RUN: %thorin %s -o - --output-ll %t.ll | FileCheck %s
+// RUN: clang %t.ll -o %t -Wno-override-module
+// RUN: %t g; test $? -eq 1
+
+.import mem;
+.import core;
+.plugin regex;
+
+.let I8 = .Idx 256;
+.let _32 = 4294967296;
+.let I32 = .Idx _32;
+.let bool = .Idx 2;
+.let Top = ⊤:.Nat;
+
+.let re = %regex.conj (%regex.cls.w, %regex.cls.W);
+
+.con regexmatch [mem: %mem.M, pattern: %regex.re, string: %mem.Ptr («Top; I8», 0), return : .Cn [%mem.M, .Idx 2, %mem.Ptr («Top; I8», 0)]] = {
+    .con match_w [mem: %mem.M, %regex.re, pos: I32, cont : .Cn[%mem.M, bool, I32]] = {
+        .let ptr = %mem.lea (Top, ‹Top; .Idx 256›, 0) (string, pos);
+        .let (`mem, char) = %mem.load (mem, ptr);
+
+        .let is_upper_lit = %core.bit2.and_ 0 (%core.icmp.uge (char, 'A'),  %core.icmp.ule (char, 'Z'));
+        .let is_lower_lit = %core.bit2.and_ 0 (%core.icmp.uge (char, 'a'),  %core.icmp.ule (char, 'z'));
+        .let is_underscore = %core.icmp.e (char, '_');
+        .let is_digit = %core.bit2.and_ 0 (%core.icmp.uge (char, '0'),  %core.icmp.ule (char, '9'));
+        .let is_w = %core.bit2.or_ 0 (%core.bit2.or_ 0 (is_upper_lit, is_lower_lit), %core.bit2.or_ 0 (is_underscore, is_digit));
+        
+        .let new_pos = (pos, %core.wrap.add 0 (pos, 1:I32))#is_w;
+        cont (mem, is_w, new_pos)
+    };
+    .con match_W [mem: %mem.M, pattern: %regex.re, pos: I32, cont: .Cn[%mem.M, bool, I32]] = {
+        .con ret [mem: %mem.M, accepted: bool, pos: I32] = {
+            cont (mem, %core.bit1.neg 0 accepted, pos)
+        };
+        match_w(mem, pattern, pos, ret)
+    };
+    .con match_conj [mem: %mem.M, pattern: %regex.re, pos: I32, cont: .Cn[%mem.M, bool, I32]] = {
+        cont (mem, 1:bool, pos)
+    };
+    .con ret [mem: %mem.M, accepted: bool, pos: I32] = {
+        return (mem, accepted, string)
+    };
+    .con match_else3 [mem: %mem.M, pattern: %regex.re, pos:I32, cont: .Cn[%mem.M, bool, I32]] = {
+        return (mem, 0:bool, string)
+    };
+    .con match_else2 [mem: %mem.M, pattern: %regex.re, pos:I32, cont: .Cn[%mem.M, bool, I32]] = {
+        (match_else3, match_conj)#(%regex.isa (%regex.conj (%regex.hole, %regex.hole), pattern)) (mem, pattern, pos, cont)
+    };
+    .con match_else [mem: %mem.M, pattern: %regex.re, pos:I32, cont: .Cn[%mem.M, bool, I32]] = {
+        (match_else2, match_W)#(%regex.isa (%regex.cls.W, pattern)) (mem, pattern, pos, cont)
+    };
+    (match_else, match_w)#(%regex.isa (%regex.cls.w, pattern)) (mem, pattern, 0:I32, ret)
+};
+
+.con .extern main[mem: %mem.M, argc: I32, argv: %mem.Ptr («⊤:.Nat; %mem.Ptr («⊤:.Nat; .Idx 256», 0)», 0), exit : .Cn [%mem.M, I32]] = {
+    .con handle_match [mem: %mem.M, matched: bool, match: %mem.Ptr(«Top; I8», 0)] = {
+
+        exit (mem, %core.conv.u _32 matched)
+    };
+
+    .con match_argument[mem: %mem.M, I32] = {
+        .let arg1 = %mem.lea (Top, ‹Top; %mem.Ptr («⊤:.Nat; .Idx 256», 0)›, 0) (argv, 1:(.Idx 4294967296));;
+        .let (`mem, to_match) = %mem.load (mem, arg1);
+        regexmatch(mem, re, to_match, handle_match)
+    };
+
+    (exit, match_argument) # (%core.icmp.ug (argc, 1:I32)) (mem, 0:I32)
+};
+
+// CHECK-NOT: %regex.isa

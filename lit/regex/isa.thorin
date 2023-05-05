@@ -1,0 +1,13 @@
+// RUN: %thorin %s -o - | FileCheck %s
+
+.import mem;
+.plugin regex;
+
+.let i8 = .Idx 256;
+.let bool = .Idx 2;
+
+.con .extern disj(return: .Cn [bool]) = {
+    .let pattern = %regex.cls.w;
+    return (%regex.isa (pattern, %regex.cls.W))
+    // CHECK: 0:(.Idx 2)
+};

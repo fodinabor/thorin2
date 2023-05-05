@@ -79,3 +79,12 @@
 /// - string: the text to match
 /// Returns: mem, bool: matched/not-matched, the matched string
 .ax %regex.match: Π [m: %mem.M, pattern: %regex.re, string: %mem.Ptr (.Idx 256, 0)] -> [%mem.M, .Idx 2, %mem.Ptr (.Idx 256, 0)];
+
+/// ## Implementation
+///
+/// ### %regex.isa
+///
+/// Checks if the next element of the regex is a 
+.ax %regex.isa_term: Π [isa: %regex.re, pattern: %regex.re] -> [.Idx 2], normalize_isa;
+.ax %regex.isa: Π.[T][isa: T -> %regex.re, pattern: %regex.re] -> [.Idx 2], normalize_isa;
+

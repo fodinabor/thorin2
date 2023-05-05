@@ -16,6 +16,9 @@ template<quant id>
 Ref normalize_quant(Ref type, Ref callee, Ref arg) {
     auto& world = type->world();
 
+    // keep regex.quant.* regex.hole, as we want to match regex.quant.* explicitly
+    if (thorin::match<hole>(arg)) return world.raw_app(type, callee, arg);
+
     // quantifiers are idempotent
     if (thorin::match(id, arg)) return arg;
 
@@ -52,12 +55,16 @@ std::vector<const Def*> flatten_in_arg(Ref arg) {
     return newArgs;
 }
 
-Ref normalize_conj(Ref type, Ref, Ref arg) {
+Ref normalize_conj(Ref type, Ref callee, Ref arg) {
     auto& world = type->world();
+    // keep regex.conj regex.hole, as we want to match regex.conj explicitly
+    if (thorin::match<hole>(arg)) return world.raw_app(type, callee, arg);
+
     if (arg->as_lit_arity() > 1) {
         auto&& newArgs = flatten_in_arg<conj>(arg);
         return world.raw_app(type, world.app(world.ax<conj>(), world.lit_nat(newArgs.size())), world.tuple(newArgs));
     }
+
     return arg;
 }
 
@@ -148,6 +155,10 @@ void reduceLitsToClass(std::vector<const Def*>& args) {
 
 Ref normalize_disj(Ref type, Ref callee, Ref arg) {
     auto& world = type->world();
+
+    // keep regex.disj regex.hole, as we want to match regex.disj explicitly
+    if (thorin::match<hole>(arg)) return world.raw_app(type, callee, arg);
+
     if (arg->as_lit_arity() > 1) {
         auto newArgs = flatten_in_arg<disj>(arg);
         make_vector_unique(newArgs);
@@ -175,11 +186,31 @@ Ref normalize_disj(Ref type, Ref callee, Ref arg) {
 
 Ref normalize_group(Ref type, Ref callee, Ref arg) {
     auto& world = type->world();
+
+    // keep regex.group regex.hole, as we want to match regex.group explicitly
+    if (thorin::match<hole>(arg)) return world.raw_app(type, callee, arg);
+
     if (arg->as_lit_arity() > 1) {
         auto&& newArgs = flatten_in_arg<conj>(arg);
         return world.raw_app(type, world.app(world.ax<group>(), world.lit_nat(newArgs.size())), world.tuple(newArgs));
     }
     return world.raw_app(type, callee, arg);
+}
+
+Ref normalize_isa(Ref type, Ref callee, Ref arg) {
+    auto& world         = type->world();
+    auto [isa, pattern] = arg->projs<2>();
+    world.DLOG("isa {} - {}", isa, pattern);
+
+    auto getAx = [=](const Def* def) -> const Axiom * {
+        if (auto app = def->isa<App>()) return app->axiom();
+        if (auto ax = def->isa<Axiom>()) return ax;
+        return nullptr;
+    };
+
+    if (auto isaAx = getAx(isa))
+        if (auto pttrnAx = getAx(pattern)) return world.lit_idx(2, isa->flags() == pattern->flags());
+    return world.raw_app(type, callee, arg); // todo: replace with some (partial evaluatable) runtime check..?
 }
 
 THORIN_regex_NORMALIZER_IMPL
